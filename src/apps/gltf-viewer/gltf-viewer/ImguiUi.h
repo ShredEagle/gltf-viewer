@@ -10,6 +10,9 @@ namespace ad {
 namespace gltfviewer {
 
 
+struct UserOptions;
+
+
 class ImguiUi
 {
 public:
@@ -27,6 +30,10 @@ private:
     // Could be pimpled
     ImGuiIO & mIo;
 };
+
+
+void showUserOptionsWindow(UserOptions & aOptions);
+
 
 } // namespace gltfviewer
 } // namespace ad

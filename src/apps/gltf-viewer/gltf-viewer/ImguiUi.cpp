@@ -1,5 +1,7 @@
 #include "ImguiUi.h"
 
+#include "UserOptions.h"
+
 #include <GLFW/glfw3.h>
 
 #include <imgui_backends/imgui_impl_glfw.h>
@@ -75,6 +77,15 @@ bool ImguiUi::isCapturingKeyboard() const
 bool ImguiUi::isCapturingMouse() const
 {
     return mIo.WantCaptureMouse;
+}
+
+
+void showUserOptionsWindow(UserOptions & aOptions)
+{
+    ImGui::Begin("Rendering options");
+    ImGui::Checkbox("Show skeletons", &aOptions.showSkeletons);
+    ImGui::Checkbox("Show Imgui demo window", &aOptions.showImguiDemo);
+    ImGui::End();
 }
 
 

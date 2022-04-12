@@ -10,6 +10,7 @@
 #include "Mesh.h"
 #include "Polar.h"
 #include "SkeletalAnimation.h"
+#include "UserOptions.h"
 
 #include <graphics/AppInterface.h>
 #include <graphics/Timer.h>
@@ -86,12 +87,6 @@ void populateAnimationRepository(AnimationRepository & aRepository, const T_anim
         aRepository.push_back(prepare(animation));
     }
 }
-
-
-struct UserOptions
-{
-    bool showSkeletons{true};
-};
 
 
 struct JointDrawer

@@ -121,8 +121,11 @@ int main(int argc, const char * argv[])
         while(application.nextFrame())
         {
             imgui.startFrame();
-
-            ImGui::ShowDemoWindow(&showDemo);
+            showUserOptionsWindow(viewerScene.options);
+            if(viewerScene.options.showImguiDemo)
+            {
+                ImGui::ShowDemoWindow(&viewerScene.options.showImguiDemo);
+            }
 
             application.getAppInterface()->clear();
 

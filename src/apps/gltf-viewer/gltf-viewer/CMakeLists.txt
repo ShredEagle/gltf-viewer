@@ -15,6 +15,7 @@ set(${TARGET_NAME}_HEADERS
     Shaders.h
     SkeletalAnimation.h
     Url.h
+    UserOptions.h
 )
 
 set(${TARGET_NAME}_SOURCES
