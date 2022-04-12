@@ -1,0 +1,18 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build:
+    uses: shredeagle/reusable-workflows/.github/workflows/main_build.yml@v1.0.0
+    with:
+      # Disable macOS until it is enabled in upstreams
+      os: >-
+        ["ubuntu-20.04", "windows-2019"]
+      #step_runtests: false #Atm here is a placeholder dummy tests, let it run
+    secrets:
+      SHREDROBOT_GITHUB_TOKEN: ${{ secrets.SHREDROBOT_GITHUB_TOKEN }}
+      ACTION_CACHENAME: ${{ secrets.ACTION_CACHENAME }}
+      # Unused secrets, but required by the reusable workflow.
+      CONAN_USER_NAME: ""
+      CONAN_USER_PASSWORD: ""
