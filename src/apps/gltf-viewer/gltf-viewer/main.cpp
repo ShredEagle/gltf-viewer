@@ -1,6 +1,7 @@
 #include "Logging.h"
 
 #include "GltfRendering.h"
+#include "ImguiUi.h"
 #include "Scene.h"
 
 #include <arte/gltf/Gltf.h>
@@ -109,17 +110,26 @@ int main(int argc, const char * argv[])
         constexpr Size2<int> gWindowSize{1280, 1024};
         ApplicationGlfw application("glTF Viewer", gWindowSize);
 
+        ImguiUi imgui{application};
+
         // Requires OpenGL context to call gl functions
-        Scene viewerScene{gltf, gltfSceneIndex, application.getAppInterface()};
+        Scene viewerScene{gltf, gltfSceneIndex, application.getAppInterface(), imgui};
 
         Timer timer{glfwGetTime(), 0.};
 
+        bool showDemo = true;
         while(application.nextFrame())
         {
+            imgui.startFrame();
+
+            ImGui::ShowDemoWindow(&showDemo);
+
             application.getAppInterface()->clear();
 
             viewerScene.update(timer);
             viewerScene.render();
+
+            imgui.render();
 
             timer.mark(glfwGetTime());
         }

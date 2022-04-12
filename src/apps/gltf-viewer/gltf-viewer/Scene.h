@@ -5,6 +5,7 @@
 #include "DebugDrawer.h"
 #include "GltfAnimation.h"
 #include "GltfRendering.h"
+#include "ImguiUi.h"
 #include "Logging.h"
 #include "Mesh.h"
 #include "Polar.h"
@@ -109,12 +110,14 @@ struct Scene
 {
     Scene(arte::Gltf aGltf,
           arte::gltf::Index<arte::gltf::Scene> aSceneIndex,
-          std::shared_ptr<graphics::AppInterface> aAppInterface) :
+          std::shared_ptr<graphics::AppInterface> aAppInterface,
+          ImguiUi & aImgui) :
         gltf{std::move(aGltf)},
         scene{gltf.get(aSceneIndex)},
         appInterface{std::move(aAppInterface)},
         camera{appInterface},
-        debugDrawer{appInterface}
+        debugDrawer{appInterface},
+        imgui{aImgui}
     {
         populateMeshRepository(indexToMesh, 
                                indexToSkeleton,
@@ -261,6 +264,11 @@ struct Scene
 
     void callbackKeyboard(int key, int scancode, int action, int mods)
     {
+        if (imgui.isCapturingKeyboard())
+        {
+            return;
+        }
+
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         {
             appInterface->requestCloseApplication();
@@ -279,11 +287,21 @@ struct Scene
 
     void callbackMouseButton(int button, int action, int mods, double xpos, double ypos)
     {
+        if (imgui.isCapturingMouse())
+        {
+            return;
+        }
+
         camera.callbackMouseButton(button, action, mods, xpos, ypos);
     }
 
     void callbackScroll(double xoffset, double yoffset)
     {
+        if (imgui.isCapturingMouse())
+        {
+            return;
+        }
+
         setProjection(camera.multiplyViewedHeight(1 - yoffset * gScrollFactor));
     }
 
@@ -299,6 +317,7 @@ struct Scene
     UserCamera camera;
     UserOptions options;
     DebugDrawer debugDrawer;
+    ImguiUi & imgui;
 
     static constexpr GLfloat gViewportHeightFactor = 1.6f;
     static constexpr GLfloat gScrollFactor = 0.05;

@@ -26,6 +26,8 @@ class GltfViewerConan(ConanFile):
 
     requires = (
         ("boost/1.77.0"),
+        ("imgui/1.87"),
+
         ("graphics/a42c573849@adnn/develop"),
         ("math/0541d9cdd9@adnn/develop"),
     )
@@ -66,6 +68,16 @@ class GltfViewerConan(ConanFile):
 
     def generate(self):
            self._generate_cmake_configfile()
+
+
+    def imports(self):
+        # see: https://blog.conan.io/2019/06/26/An-introduction-to-the-Dear-ImGui-library.html
+        # the imgui package is designed this way: consumer has to import desired backends.
+        self.copy("imgui_impl_glfw.cpp",         src="./res/bindings", dst="conan_imports/imgui_backends")
+        self.copy("imgui_impl_opengl3.cpp",      src="./res/bindings", dst="conan_imports/imgui_backends")
+        self.copy("imgui_impl_glfw.h",           src="./res/bindings", dst="conan_imports/imgui_backends")
+        self.copy("imgui_impl_opengl3.h",        src="./res/bindings", dst="conan_imports/imgui_backends")
+        self.copy("imgui_impl_opengl3_loader.h", src="./res/bindings", dst="conan_imports/imgui_backends")
 
 
     def build(self):
