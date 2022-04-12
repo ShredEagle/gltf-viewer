@@ -25,6 +25,7 @@ class GltfViewerConan(ConanFile):
     }
 
     requires = (
+        ("boost/1.77.0"),
         ("graphics/a42c573849@adnn/develop"),
         ("math/0541d9cdd9@adnn/develop"),
     )
