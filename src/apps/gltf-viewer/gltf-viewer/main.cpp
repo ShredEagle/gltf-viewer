@@ -122,6 +122,7 @@ int main(int argc, const char * argv[])
         {
             imgui.startFrame();
             showUserOptionsWindow(viewerScene.options);
+            viewerScene.showSceneControls();
             if(viewerScene.options.showImguiDemo)
             {
                 ImGui::ShowDemoWindow(&viewerScene.options.showImguiDemo);

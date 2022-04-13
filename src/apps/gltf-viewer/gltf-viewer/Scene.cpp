@@ -109,5 +109,35 @@ Scene::getBoundingBox(arte::Const_Owned<arte::gltf::Scene> aScene) const
 }
 
 
+void Scene::showSceneControls()
+{
+    ImGui::Begin("Scene options");
+
+    // Animation selection
+    if(!animations.empty())
+    {
+        if (ImGui::BeginCombo("Animation", currentAnimation().name.c_str()))
+        {
+            for (int animId = 0; animId < animations.size(); ++animId)
+            {
+                const bool isSelected = (activeAnimation && *activeAnimation == animId);
+                if (ImGui::Selectable(animations[animId].name.c_str(), isSelected))
+                {
+                    activeAnimation = animId;
+                }
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+    ImGui::End();
+}
+
+
 } // namespace gltfviewer
 } // namespace ad

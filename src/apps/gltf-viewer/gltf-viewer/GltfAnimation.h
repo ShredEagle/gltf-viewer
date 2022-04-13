@@ -102,6 +102,7 @@ struct Animation
 
     Mode playMode{Mode::Repeat};
     Time_t duration{0};
+    std::string name;
 };
 
 

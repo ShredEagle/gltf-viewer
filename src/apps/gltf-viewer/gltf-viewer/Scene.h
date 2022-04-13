@@ -120,7 +120,7 @@ struct Scene
         populateAnimationRepository(animations, gltf.getAnimations());
         if (!animations.empty())
         {
-            activeAnimation = &animations.front();
+            activeAnimation = 0;
         }
         
         auto sceneBounds = getBoundingBox(scene);
@@ -155,6 +155,8 @@ struct Scene
     void setView(const math::AffineMatrix<4, float> & aViewTransform);
     void setProjection(const math::Matrix<4, 4, float> & aProjectionTransform);
 
+    void showSceneControls();
+
     void update(const graphics::Timer & aTimer)
     {
         setView(camera.update());
@@ -163,13 +165,17 @@ struct Scene
         updatesInstances();
     }
 
+    Animation & currentAnimation()
+    {
+        return animations.at(*activeAnimation);
+    }
 
     /// \brief Modify gltf Nodes with the updated local transforms.
     void updateAnimation(const graphics::Timer & aTimer)
     {
-        if(activeAnimation != nullptr)
+        if(activeAnimation)
         {
-            activeAnimation->updateScene(aTimer.time(), scene);
+            currentAnimation().updateScene(aTimer.time(), scene);
         }
     }
 
@@ -305,7 +311,7 @@ struct Scene
     MeshRepository indexToMesh;
     SkeletonRepository indexToSkeleton;
     AnimationRepository animations;
-    Animation * activeAnimation{nullptr};
+    std::optional<std::size_t> activeAnimation;
     JointRepository nodeToJoint;
     Renderer renderer;
     std::shared_ptr<graphics::AppInterface> appInterface;

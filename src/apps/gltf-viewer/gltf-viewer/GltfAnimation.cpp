@@ -1,5 +1,6 @@
 #include "GltfAnimation.h"
 
+#include "DataLayout.h"
 #include "LoadBuffer.h"
 #include "Logging.h"
 
@@ -33,10 +34,19 @@ std::vector<T_value> loadAccessorData(arte::Const_Owned<arte::gltf::Accessor> aA
     // TODO Handle stride (is it allowed in animation buffer views though?)
     if(bufferView->byteStride)
     {
-        ADLOG(gPrepareLogger, critical)
-             ("Buffer view #{} has a stride, not currently supported in animation.",
-              *aAccessor->bufferView);
-        throw std::logic_error{"Buffer view with stride in animation."};
+        if (*bufferView->byteStride == getElementByteSize(aAccessor))
+        {
+            ADLOG(gPrepareLogger, info)
+                 ("Buffer view #{} has an explicit stride of {}, which matches the element byte size.",
+                  *aAccessor->bufferView, *bufferView->byteStride);
+        }
+        else
+        {
+            ADLOG(gPrepareLogger, critical)
+                 ("Buffer view #{} has an non-default stride, not currently supported in animation.",
+                  *aAccessor->bufferView);
+            throw std::logic_error{"Buffer view with stride in animation."};
+        }
     }
 
     // TODO Ad 2022/03/15 This can probably be optimized to work without a copy
@@ -150,6 +160,15 @@ Animation prepare(arte::Const_Owned<arte::gltf::Animation> aAnimation)
                 .sampler = result.samplers.at(channel->sampler).get(),
             }
         );
+    }
+
+    if(auto name = aAnimation->name; !name.empty())
+    {
+        result.name = name;
+    }
+    else
+    {
+        result.name = "Animation #" + std::to_string(aAnimation.id());
     }
 
     ADLOG(gPrepareLogger, debug)

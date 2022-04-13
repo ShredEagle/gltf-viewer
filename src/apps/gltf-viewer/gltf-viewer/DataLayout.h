@@ -33,9 +33,6 @@ inline std::size_t getComponentSize(GLenum aComponentType)
 
 struct VertexAttributeLayout
 {
-    GLint componentsPerAttribute;
-    std::size_t occupiedAttributes{1}; // For matrices types, will be the number of columns.
-
     std::size_t totalComponents() const
     { return componentsPerAttribute * occupiedAttributes; }
 
@@ -43,6 +40,9 @@ struct VertexAttributeLayout
     {
         return totalComponents() * getComponentSize(aComponentType);
     }
+
+    GLint componentsPerAttribute;
+    std::size_t occupiedAttributes{1}; // For matrices types, will be the number of columns.
 };
 
 
@@ -57,6 +57,14 @@ const std::map<ElementType, VertexAttributeLayout> gElementTypeToLayout{
     {ElementType::Mat3,   {3, 3}},    
     {ElementType::Mat4,   {4, 4}},    
 };
+
+
+/// \return The byte size of an element of this accessor.
+/// This represents the "tight stride" of the accessor.
+inline std::size_t getElementByteSize(const arte::gltf::Accessor & aAccessor)
+{
+    return gElementTypeToLayout.at(aAccessor.type).byteSize(aAccessor.componentType);
+}
 
 
 } // namespace gltfviewer
