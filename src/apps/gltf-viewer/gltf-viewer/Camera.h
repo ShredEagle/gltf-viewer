@@ -4,6 +4,8 @@
 #include "Logging.h"
 #include "Polar.h"
 
+#include <arte/gltf/Gltf.h>
+
 #include <graphics/AppInterface.h>
 #include <graphics/CameraUtilities.h>
 
@@ -17,6 +19,71 @@ namespace ad {
 namespace gltfviewer {
 
 
+struct CameraInstance
+{
+    math::AffineMatrix<4, float> getViewTransform() const
+    { return orientation.inverse(); }
+
+    math::AffineMatrix<4, float> orientation;
+    arte::Const_Owned<arte::gltf::Camera> gltfCamera;
+};
+
+
+inline math::Matrix<4, 4, float> getProjection(arte::Const_Owned<arte::gltf::Camera> aCamera,
+                                               float aAspectRatio)
+{
+    switch(aCamera->type)
+    {
+    case arte::gltf::Camera::Type::Orthographic:
+    {
+        auto & ortho = std::get<arte::gltf::Camera::Orthographic>(aCamera->projection);
+        //float r = aAspectRatio ? *aAspectRatio * ortho.ymag : ortho.xmag;
+        float r = aAspectRatio * ortho.ymag;
+        float t = ortho.ymag;
+        float f = ortho.zfar;
+        float n = ortho.znear;
+        return {
+            1/r,    0.f,    0.f,         0.f,
+            0.f,    1/t,    0.f,         0.f,
+            0.f,    0.f,    2/(n-f),     0.f,
+            0.f,    0.f,    (f+n)/(n-f), 1.f, 
+        };
+        break;
+    }
+    case arte::gltf::Camera::Type::Perspective:
+    {
+        auto & persp = std::get<arte::gltf::Camera::Perspective>(aCamera->projection);
+        //float a = aAspectRatio ? *aAspectRatio : persp.aspectRatio;
+        float a = aAspectRatio;
+        float y = persp.yfov;
+        float n = persp.znear;
+        float tan = std::tan(0.5f * y);
+
+        if (persp.zfar)
+        {
+            float f = *persp.zfar;
+            return {
+                1/(a*tan),  0.f,    0.f,         0.f,
+                0.f,        1/tan,  0.f,         0.f,
+                0.f,        0.f,    (f+n)/(n-f), -1.f,
+                0.f,        0.f,    2*f*n/(n-f), 0.f, 
+            };
+        }
+        else
+        {
+            return {
+                1/(a*tan),  0.f,    0.f,        0.f,
+                0.f,        1/tan,  0.f,        0.f,
+                0.f,        0.f,    -1.f,       -1.f,
+                0.f,        0.f,    -2*n,       0.f, 
+            };
+        }
+        break;
+    }
+    }
+}
+
+
 class UserCamera
 {
 public:
@@ -24,7 +91,8 @@ public:
         mAppInterface{std::move(aAppInterface)}
     {}
 
-    math::AffineMatrix<4, GLfloat> update();
+    /// \return View matrix.
+    math::AffineMatrix<4, GLfloat> getViewTransform();
 
     void callbackCursorPosition(double xpos, double ypos);
     void callbackMouseButton(int button, int action, int mods, double xpos, double ypos);
@@ -32,6 +100,7 @@ public:
     void setOrigin(math::Position<3, GLfloat> aNewOrigin)
     { mPolarOrigin = aNewOrigin; }
 
+    /// \return Projection matrix.
     math::Matrix<4, 4, float> setViewedHeight(GLfloat aHeight);
     math::Matrix<4, 4, float> multiplyViewedHeight(GLfloat aFactor);
 
@@ -56,7 +125,7 @@ private:
 };
 
 
-inline math::AffineMatrix<4, GLfloat> UserCamera::update()
+inline math::AffineMatrix<4, GLfloat> UserCamera::getViewTransform()
 {
     const math::Position<3, GLfloat> cameraCartesian = mPosition.toCartesian();
     ADLOG(gDrawLogger, trace)("Camera position {}.", cameraCartesian);
