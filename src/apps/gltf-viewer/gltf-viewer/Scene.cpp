@@ -58,15 +58,6 @@ void Scene::setProjection(const math::Matrix<4, 4, float> & aProjectionTransform
 }
 
 
-void Scene::selectCamera(std::size_t aCameraInstanceId)
-{
-    selectedCamera = aCameraInstanceId;
-    setProjection(getProjection(
-        cameraInstances[*selectedCamera].gltfCamera,
-        getRatio<GLfloat>(appInterface->getFramebufferSize())));
-}
-
-
 //
 // Bounding Box
 //
@@ -118,6 +109,9 @@ Scene::getBoundingBox(arte::Const_Owned<arte::gltf::Scene> aScene) const
 }
 
 
+//
+// GUI
+//
 void Scene::showSceneControls()
 {
     ImGui::Begin("Scene options");
@@ -145,53 +139,8 @@ void Scene::showSceneControls()
         }
     }
 
-    // Camera selection
-    if(!cameraInstances.empty())
-    {
-        auto nameCamera = [&](std::size_t aId)
-        { 
-            std::ostringstream oss;
-            oss << "#" << aId << " (" << arte::to_string(cameraInstances[aId].gltfCamera->type);
-            if (!cameraInstances[aId].gltfCamera->name.empty())
-            {
-                oss << " '" << cameraInstances[aId].gltfCamera->name << "'";
-            }
-            oss << ")";
-            return oss.str();
-        };
+    cameraSystem.appendCameraControls();
 
-        const std::string customCameraName = "User camera";
-        std::string preview = selectedCamera ? nameCamera(*selectedCamera) : customCameraName;
-        if (ImGui::BeginCombo("Camera", preview.c_str()))
-        {
-            if (ImGui::Selectable(customCameraName.c_str(), !selectedCamera))
-            {
-                selectedCamera = std::nullopt;
-                // Keep same height, get the projection matrix.
-                setProjection(customCamera.multiplyViewedHeight(1));
-            }
-            if (!selectedCamera)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-
-            for (int id = 0; id < cameraInstances.size(); ++id)
-            {
-                const bool isSelected = (selectedCamera && *selectedCamera == id);
-                if (ImGui::Selectable(nameCamera(id).c_str(), isSelected))
-                {
-                    selectCamera(id);
-                }
-
-                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-                if (isSelected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-    }
     ImGui::End();
 }
 

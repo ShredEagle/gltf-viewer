@@ -19,6 +19,7 @@ set(${TARGET_NAME}_HEADERS
 )
 
 set(${TARGET_NAME}_SOURCES
+    Camera.cpp
     DebugDrawer.cpp
     GltfAnimation.cpp
     GltfRendering.cpp

@@ -110,7 +110,7 @@ struct Scene
         gltf{std::move(aGltf)},
         scene{gltf.get(aSceneIndex)},
         appInterface{std::move(aAppInterface)},
-        customCamera{appInterface},
+        cameraSystem{appInterface},
         debugDrawer{appInterface},
         imgui{aImgui}
     {
@@ -123,22 +123,12 @@ struct Scene
             activeAnimation = 0;
         }
         
-        // Note: the camera vector is not yet populated
-        //if(gltf.countCameras() != 0)
-        //{
-        //    selectCamera(0);
-        //}
-
         auto sceneBounds = getBoundingBox(scene);
         if (!sceneBounds)
         {
             throw std::logic_error{"Scene does not contain bounded geometry to render."};
         }
-        ADLOG(gPrepareLogger, info)
-             ("Centering camera on {}, scene bounding box is {}.",
-              sceneBounds->center(), *sceneBounds);
-        customCamera.setOrigin(sceneBounds->center());
-        setProjection(customCamera.setViewedHeight(sceneBounds->height() * gViewportHeightFactor));
+        cameraSystem.setViewedBox(*sceneBounds);
 
         using namespace std::placeholders;
         appInterface->registerKeyCallback(
@@ -170,14 +160,9 @@ struct Scene
         updateAnimation(aTimer);
         updatesInstances();
 
-        if (!selectedCamera)
-        {
-            setView(customCamera.getViewTransform());
-        }
-        else
-        {
-            setView(cameraInstances[*selectedCamera].getViewTransform());
-        }
+        setView(cameraSystem.getViewTransform());
+        // This is a bit greedy, as the projection transform rarely changes compared to the view.
+        setProjection(cameraSystem.getProjectionTransform(appInterface));
     }
 
     Animation & currentAnimation()
@@ -197,7 +182,7 @@ struct Scene
 
     void updatesInstances()
     {
-        cameraInstances.clear();
+        cameraSystem.clearGltfCameras();
         clearInstances(indexToMesh);
         JointDrawer jointDrawer{.debugDrawer = debugDrawer, .options = options};
         for (auto node : scene.iterate(&arte::gltf::Scene::nodes))
@@ -230,7 +215,7 @@ struct Scene
 
         if(aNode->camera)
         {
-            cameraInstances.push_back({
+            cameraSystem.push({
                 .orientation = modelTransform,
                 .gltfCamera = aNode.get(&arte::gltf::Node::camera),
             });
@@ -307,7 +292,7 @@ struct Scene
 
     void callbackCursorPosition(double xpos, double ypos)
     {
-        customCamera.callbackCursorPosition(xpos, ypos);
+        cameraSystem.callbackCursorPosition(xpos, ypos);
     }
 
     void callbackMouseButton(int button, int action, int mods, double xpos, double ypos)
@@ -317,7 +302,7 @@ struct Scene
             return;
         }
 
-        customCamera.callbackMouseButton(button, action, mods, xpos, ypos);
+        cameraSystem.callbackMouseButton(button, action, mods, xpos, ypos);
     }
 
     void callbackScroll(double xoffset, double yoffset)
@@ -327,7 +312,7 @@ struct Scene
             return;
         }
 
-        setProjection(customCamera.multiplyViewedHeight(1 - yoffset * gScrollFactor));
+        cameraSystem.callbackScroll(xoffset, yoffset);
     }
 
     arte::Gltf gltf;
@@ -339,16 +324,11 @@ struct Scene
     JointRepository nodeToJoint;
     Renderer renderer;
     std::shared_ptr<graphics::AppInterface> appInterface;
-    std::vector<CameraInstance> cameraInstances;
-    std::optional<std::size_t> selectedCamera;
-    UserCamera customCamera;
+    CameraSystem cameraSystem;
 
     UserOptions options;
     DebugDrawer debugDrawer;
     ImguiUi & imgui;
-
-    static constexpr GLfloat gViewportHeightFactor = 1.6f;
-    static constexpr GLfloat gScrollFactor = 0.05;
 };
 
 } // namespace gltfviewer
