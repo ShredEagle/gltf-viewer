@@ -1,5 +1,6 @@
 #include "GltfRendering.h"
 
+#include "ImguiUi.h"
 #include "Logging.h"
 #include "Shaders.h"
 #include "ShadersPbr.h"
@@ -145,6 +146,12 @@ Renderer::Renderer()
 }
 
 
+const Renderer::ShadingPrograms & Renderer::activePrograms() const
+{
+    return mPrograms.at(mShadingModel);
+}
+
+
 template <class ... VT_extraParams>
 void Renderer::renderImpl(const Mesh & aMesh,
                           graphics::Program & aProgram,
@@ -177,14 +184,14 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
 void Renderer::render(const Mesh & aMesh) const
 {
-    renderImpl(aMesh, *mPrograms.at(GpuProgram::InstancedNoAnimation), aMesh.gpuInstances.size());
+    renderImpl(aMesh, *activePrograms().at(GpuProgram::InstancedNoAnimation), aMesh.gpuInstances.size());
 }
 
 
 void Renderer::render(const Mesh & aMesh, const Skeleton & aSkeleton) const
 {
     bind(aSkeleton);
-    renderImpl(aMesh, *mPrograms.at(GpuProgram::Skinning));
+    renderImpl(aMesh, *activePrograms().at(GpuProgram::Skinning));
 }
 
 
@@ -212,19 +219,27 @@ void Renderer::initializePrograms()
     {
         auto phong = std::make_shared<graphics::Program>(
             graphics::makeLinkedProgram({
-                {GL_VERTEX_SHADER,   gltfviewer::gPhongVertexShader},
-                //{GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+                {GL_VERTEX_SHADER,   gltfviewer::gStaticVertexShader},
                 {GL_FRAGMENT_SHADER, gltfviewer::gPbrFragmentShader.c_str()},
         }));
         setLights(*phong);
-        mPrograms.emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
+        mPrograms[ShadingModel::Pbr].emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
+    }
+
+    {
+        auto phong = std::make_shared<graphics::Program>(
+            graphics::makeLinkedProgram({
+                {GL_VERTEX_SHADER,   gltfviewer::gStaticVertexShader},
+                {GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+        }));
+        setLights(*phong);
+        mPrograms[ShadingModel::Phong].emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
     }
 
     {
         auto skinning = std::make_shared<graphics::Program>(
             graphics::makeLinkedProgram({
                 {GL_VERTEX_SHADER,   gltfviewer::gSkeletalVertexShader},
-                //{GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
                 {GL_FRAGMENT_SHADER, gltfviewer::gPbrFragmentShader.c_str()},
         }));
         if(auto paletteBlockId = glGetUniformBlockIndex(*skinning, "MatrixPalette");
@@ -237,14 +252,33 @@ void Renderer::initializePrograms()
             throw std::logic_error{"Uniform block name could not be found."};
         }
         setLights(*skinning);
-        mPrograms.emplace(GpuProgram::Skinning, std::move(skinning));
+        mPrograms[ShadingModel::Pbr].emplace(GpuProgram::Skinning, std::move(skinning));
+    }
+
+    {
+        auto skinning = std::make_shared<graphics::Program>(
+            graphics::makeLinkedProgram({
+                {GL_VERTEX_SHADER,   gltfviewer::gSkeletalVertexShader},
+                {GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+        }));
+        if(auto paletteBlockId = glGetUniformBlockIndex(*skinning, "MatrixPalette");
+           paletteBlockId != GL_INVALID_INDEX)
+        {
+            glUniformBlockBinding(*skinning, paletteBlockId, gPaletteBlockBinding);
+        }
+        else
+        {
+            throw std::logic_error{"Uniform block name could not be found."};
+        }
+        setLights(*skinning);
+        mPrograms[ShadingModel::Phong].emplace(GpuProgram::Skinning, std::move(skinning));
     }
 }
 
 
 void Renderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aTransformation)
 {
-    for (auto & [_key, program] : mPrograms)
+    for (auto & [_key, program] : activePrograms())
     {
         setUniform(*program, "u_camera", aTransformation); 
     }
@@ -253,7 +287,7 @@ void Renderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aT
 
 void Renderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & aTransformation)
 {
-    for (auto & [_key, program] : mPrograms)
+    for (auto & [_key, program] : activePrograms())
     {
         setUniform(*program, "u_projection", aTransformation); 
     }
@@ -262,17 +296,48 @@ void Renderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & a
 
 void Renderer::togglePolygonMode()
 {
-    switch(polygonMode)
+    switch(mPolygonMode)
     {
     case PolygonMode::Fill:
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        polygonMode = PolygonMode::Line;
+        mPolygonMode = PolygonMode::Line;
         break;
     case PolygonMode::Line:
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        polygonMode = PolygonMode::Fill;
+        mPolygonMode = PolygonMode::Fill;
         break;
     }
+}
+
+
+void Renderer::showRendererOptions()
+{
+    ImGui::Begin("Rendering options");
+    if (ImGui::Button("Toggle wireframe"))
+    {
+        togglePolygonMode();
+    }
+
+    if (ImGui::BeginCombo("Shading", to_string(mShadingModel).c_str()))
+    {
+        for (int shadingId = 0; shadingId < static_cast<int>(ShadingModel::_End); ++shadingId)
+        {
+            ShadingModel model = static_cast<ShadingModel>(shadingId);
+            const bool isSelected = (mShadingModel == model);
+            if (ImGui::Selectable(to_string(model).c_str(), isSelected))
+            {
+                mShadingModel = model;
+            }
+
+            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+            if (isSelected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::End();
 }
 
 

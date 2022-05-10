@@ -142,6 +142,8 @@ void Scene::showSceneControls()
     cameraSystem.appendCameraControls();
 
     ImGui::End();
+
+    renderer.showRendererOptions();
 }
 
 

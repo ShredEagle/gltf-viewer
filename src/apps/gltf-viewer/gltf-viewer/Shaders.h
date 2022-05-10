@@ -8,7 +8,7 @@ namespace gltfviewer {
 //
 // Phong shading(ambient, diffuse, specular)
 //
-inline const GLchar* gPhongVertexShader = R"#(
+inline const GLchar* gStaticVertexShader = R"#(
     #version 400
 
     layout(location=0) in vec4 ve_position;
@@ -132,21 +132,23 @@ inline const GLchar* gPhongFragmentShader = R"#(
             * ex_color
             ;
 
+        vec4 n = normalize(ex_normal_view); // linear interpolation might shorten the normal
         vec4 lightDirection_view = normalize(u_camera * u_light.position_world - ex_position_view);
+        // The view vector is (0, 0, 1).
         vec4 bisector_view = vec4(normalize(vec3(0., 0., 1.) + lightDirection_view.xyz), 0.);
 
         // Use the same color for all lighting components (diffuse, specular and ambient).
         out_color = vec4(
             materialColor.xyz * u_light.color
-                * ( max(0., dot(ex_normal_view, lightDirection_view)) * u_light.diffuse  // diffuse
-                    + max(0., pow(dot(ex_normal_view, bisector_view), u_light.specularExponent)) * u_light.ambient // specular
+                * ( max(0., dot(n, lightDirection_view)) * u_light.diffuse  // diffuse
+                    + max(0., pow(dot(n, bisector_view), u_light.specularExponent)) * u_light.ambient // specular
                     + u_light.ambient // ambient
                    )
             ,
             materialColor.w);
             //1.);
 
-        //out_color = ex_normal_view;
+        //out_color = n;
         //out_color = materialColor;
     }
 )#";

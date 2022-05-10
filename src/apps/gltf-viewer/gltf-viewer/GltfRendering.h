@@ -24,8 +24,31 @@ enum class GpuProgram
 };
 
 
+enum class ShadingModel
+{
+    Phong,
+    Pbr,
+
+    // Keep last
+    _End,
+};
+
+inline std::string to_string(ShadingModel aShading)
+{
+    switch(aShading)
+    {
+    case ShadingModel::Phong:
+        return "Phong";
+    case ShadingModel::Pbr:
+        return "Pbr";
+    }
+}
+
+
 class Renderer
 {
+    using ShadingPrograms = std::map<GpuProgram, std::shared_ptr<graphics::Program>>;
+
 public:
     Renderer();
 
@@ -38,6 +61,8 @@ public:
 
     void render(const Mesh & aMesh) const;
     void render(const Mesh & aMesh, const Skeleton & aSkeleton) const;
+
+    void showRendererOptions();
 
     static constexpr GLsizei gColorTextureUnit{0};
     static constexpr GLsizei gMetallicRoughnessTextureUnit{1};
@@ -53,9 +78,11 @@ private:
     void initializePrograms();
     template <class ... VT_extraParams>
     void renderImpl(const Mesh & aMesh, graphics::Program & aProgram, VT_extraParams ... aExtraParams) const;
+    const ShadingPrograms & activePrograms() const;
 
-    std::map<GpuProgram, std::shared_ptr<graphics::Program>> mPrograms;
-    PolygonMode polygonMode{PolygonMode::Fill};
+    std::map<ShadingModel, ShadingPrograms> mPrograms;
+    ShadingModel mShadingModel{ShadingModel::Pbr};
+    PolygonMode mPolygonMode{PolygonMode::Fill};
 };
 
 } // namespace gltfviewer
