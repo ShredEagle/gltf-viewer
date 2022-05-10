@@ -74,7 +74,7 @@ private:
 
     static constexpr math::Position<3, GLfloat> gGazePoint{0.f, 0.f, 0.f};
     static constexpr math::Vec<2, GLfloat> gMouseControlFactor{1/700.f, 1/700.f};
-    static constexpr GLfloat gViewedDepth = 10000;
+    static constexpr GLfloat gViewedDepth = 100;
     static constexpr GLfloat gScrollFactor = 0.05;
 };
 

@@ -13,6 +13,7 @@ set(${TARGET_NAME}_HEADERS
     Polar.h
     Scene.h
     Shaders.h
+    ShadersPbr.h
     SkeletalAnimation.h
     Url.h
     UserOptions.h

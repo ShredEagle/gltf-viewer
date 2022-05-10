@@ -78,6 +78,9 @@ struct Material
     std::shared_ptr<graphics::Texture> baseColorTexture;
     arte::gltf::Material::AlphaMode alphaMode;
     bool doubleSided;
+    GLfloat metallicFactor;
+    GLfloat roughnessFactor;
+    std::shared_ptr<graphics::Texture> metallicRoughnessTexture;
 
 
     static std::shared_ptr<graphics::Texture> DefaultTexture();

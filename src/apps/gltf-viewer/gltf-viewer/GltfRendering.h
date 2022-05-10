@@ -39,7 +39,8 @@ public:
     void render(const Mesh & aMesh) const;
     void render(const Mesh & aMesh, const Skeleton & aSkeleton) const;
 
-    static constexpr GLsizei gTextureUnit{0};
+    static constexpr GLsizei gColorTextureUnit{0};
+    static constexpr GLsizei gMetallicRoughnessTextureUnit{1};
     static constexpr GLuint gPaletteBlockBinding{3};
 
 private:

@@ -236,16 +236,25 @@ Material::Material(arte::Const_Owned<arte::gltf::Material> aMaterial) :
     alphaMode{aMaterial->alphaMode},
     doubleSided{aMaterial->doubleSided}
 {
+    auto textureDefault = [&aMaterial](std::optional<gltf::TextureInfo> aTextureInfo)
+    {
+        if(aTextureInfo)
+        {
+            return prepare(aMaterial.get<gltf::Texture>(aTextureInfo->index));
+        }
+        else
+        {
+            return DefaultTexture();
+        }
+    };
+
     gltf::material::PbrMetallicRoughness pbr = GetPbr(aMaterial);
-    if(pbr.baseColorTexture)
-    {
-        gltf::TextureInfo info = *pbr.baseColorTexture;
-        baseColorTexture = prepare(aMaterial.get<gltf::Texture>(info.index));
-    }
-    else
-    {
-        baseColorTexture = DefaultTexture();
-    }
+
+    baseColorTexture = textureDefault(pbr.baseColorTexture);
+
+    metallicFactor = pbr.metallicFactor;
+    roughnessFactor = pbr.roughnessFactor;
+    metallicRoughnessTexture = textureDefault(pbr.metallicRoughnessTexture);
 }
 
 

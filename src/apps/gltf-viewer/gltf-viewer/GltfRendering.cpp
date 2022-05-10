@@ -2,6 +2,7 @@
 
 #include "Logging.h"
 #include "Shaders.h"
+#include "ShadersPbr.h"
 
 #include <renderer/Uniforms.h>
 
@@ -125,8 +126,11 @@ void render(const MeshPrimitive & aMeshPrimitive, VT_extraParams ... aExtraDrawP
         throw std::logic_error{"Mask alpha mode not implemented."};
     }
 
-    glActiveTexture(GL_TEXTURE0 + Renderer::gTextureUnit);
+    glActiveTexture(GL_TEXTURE0 + Renderer::gColorTextureUnit);
     glBindTexture(GL_TEXTURE_2D, *material.baseColorTexture);
+
+    glActiveTexture(GL_TEXTURE0 + Renderer::gMetallicRoughnessTextureUnit);
+    glBindTexture(GL_TEXTURE_2D, *material.metallicRoughnessTexture);
 
     drawCall(aMeshPrimitive, std::forward<VT_extraParams>(aExtraDrawParams)...);
 
@@ -151,11 +155,14 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
     graphics::bind_guard boundProgram{aProgram};
 
-    setUniformInt(aProgram, "u_baseColorTex", gTextureUnit); 
+    setUniformInt(aProgram, "u_baseColorTex", gColorTextureUnit); 
+    setUniformInt(aProgram, "u_metallicRoughnessTex", gMetallicRoughnessTextureUnit); 
 
     for (const auto & primitive : aMesh.primitives)
     {
         setUniform(aProgram, "u_baseColorFactor", primitive.material.baseColorFactor); 
+        setUniformFloat(aProgram, "u_metallicFactor", primitive.material.metallicFactor); 
+        setUniformFloat(aProgram, "u_roughnessFactor", primitive.material.roughnessFactor); 
 
         // If the vertex color are not provided for the primitive, the default value (black)
         // will be used in the shaders. It must be offset to white.
@@ -206,7 +213,8 @@ void Renderer::initializePrograms()
         auto phong = std::make_shared<graphics::Program>(
             graphics::makeLinkedProgram({
                 {GL_VERTEX_SHADER,   gltfviewer::gPhongVertexShader},
-                {GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+                //{GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+                {GL_FRAGMENT_SHADER, gltfviewer::gPbrFragmentShader.c_str()},
         }));
         setLights(*phong);
         mPrograms.emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
@@ -216,7 +224,8 @@ void Renderer::initializePrograms()
         auto skinning = std::make_shared<graphics::Program>(
             graphics::makeLinkedProgram({
                 {GL_VERTEX_SHADER,   gltfviewer::gSkeletalVertexShader},
-                {GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+                //{GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
+                {GL_FRAGMENT_SHADER, gltfviewer::gPbrFragmentShader.c_str()},
         }));
         if(auto paletteBlockId = glGetUniformBlockIndex(*skinning, "MatrixPalette");
            paletteBlockId != GL_INVALID_INDEX)
