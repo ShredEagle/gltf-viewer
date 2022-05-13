@@ -39,6 +39,10 @@ class GltfViewerConan(ConanFile):
     build_policy = "missing"
     generators = "cmake_paths", "cmake_find_package", "CMakeToolchain"
 
+    # Otherwise, conan removes the imported imgui backends after build()
+    # they are still required for the CMake config phase of package()
+    keep_imports = True
+
     scm = {
         "type": "git",
         "url": "auto",
