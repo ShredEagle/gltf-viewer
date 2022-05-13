@@ -27,7 +27,8 @@ enum class GpuProgram
 enum class ShadingModel
 {
     Phong,
-    Pbr,
+    PbrReference,
+    PbrLearn,
 
     // Keep last
     _End,
@@ -39,10 +40,36 @@ inline std::string to_string(ShadingModel aShading)
     {
     case ShadingModel::Phong:
         return "Phong";
-    case ShadingModel::Pbr:
-        return "Pbr";
+    case ShadingModel::PbrReference:
+        return "PbrReference";
+    case ShadingModel::PbrLearn:
+        return "PbrLearn";
     }
 }
+
+enum class DebugColor
+{
+    Default = 0,
+    Metallic,
+    Roughness,
+    Albedo,
+    SpecularRatio,
+    Normal,
+    View,
+    Halfway,
+    NdotL,
+    VdotH,
+    NormalDistributionFunction,
+    GeometryFunction,
+    Diffuse,
+    Specular,
+
+    // Keep last
+    _End,
+};
+
+
+std::string to_string(DebugColor aColor);
 
 
 class Renderer
@@ -81,8 +108,9 @@ private:
     const ShadingPrograms & activePrograms() const;
 
     std::map<ShadingModel, ShadingPrograms> mPrograms;
-    ShadingModel mShadingModel{ShadingModel::Pbr};
+    ShadingModel mShadingModel{ShadingModel::PbrReference};
     PolygonMode mPolygonMode{PolygonMode::Fill};
+    DebugColor mColorOutput{DebugColor::Default};
 };
 
 } // namespace gltfviewer

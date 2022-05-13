@@ -4,6 +4,7 @@
 #include "Logging.h"
 #include "Shaders.h"
 #include "ShadersPbr.h"
+#include "ShadersPbr_learnopengl.h"
 
 #include <renderer/Uniforms.h>
 
@@ -17,6 +18,42 @@ namespace ad {
 using namespace arte;
 
 namespace gltfviewer {
+
+
+inline std::string to_string(DebugColor aColor)
+{
+    switch(aColor)
+    {
+    case DebugColor::Default:
+        return "Default";
+    case DebugColor::Metallic:
+        return "Metallic";
+    case DebugColor::Roughness:
+        return "Roughness";
+    case DebugColor::Albedo:
+        return "Albedo";
+    case DebugColor::SpecularRatio:
+        return "SpecularRatio";
+    case DebugColor::Normal:
+        return "Normal";
+    case DebugColor::View:
+        return "View";
+    case DebugColor::Halfway:
+        return "Halfway";
+    case DebugColor::NdotL:
+        return "NdotL";
+    case DebugColor::VdotH:
+        return "VdotH";
+    case DebugColor::NormalDistributionFunction:
+        return "NormalDistributionFunction";
+    case DebugColor::GeometryFunction:
+        return "GeometryFunction";
+    case DebugColor::Diffuse:
+        return "Diffuse";
+    case DebugColor::Specular:
+        return "Specular";
+    }
+}
 
 
 math::AffineMatrix<4, float> getLocalTransform(const arte::gltf::Node::TRS & aTRS)
@@ -162,6 +199,8 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
     graphics::bind_guard boundProgram{aProgram};
 
+    setUniformInt(aProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
+
     setUniformInt(aProgram, "u_baseColorTex", gColorTextureUnit); 
     setUniformInt(aProgram, "u_metallicRoughnessTex", gMetallicRoughnessTextureUnit); 
 
@@ -216,63 +255,41 @@ void Renderer::initializePrograms()
         setUniformFloat(aProgram, "u_light.ambient", 0.45f);
     };
 
+    auto insertPrograms = [&](ShadingModel aShadingModel, const char * aFragmentSource)
     {
-        auto phong = std::make_shared<graphics::Program>(
-            graphics::makeLinkedProgram({
-                {GL_VERTEX_SHADER,   gltfviewer::gStaticVertexShader},
-                {GL_FRAGMENT_SHADER, gltfviewer::gPbrFragmentShader.c_str()},
-        }));
-        setLights(*phong);
-        mPrograms[ShadingModel::Pbr].emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
-    }
+        {
+            auto phong = std::make_shared<graphics::Program>(
+                graphics::makeLinkedProgram({
+                    {GL_VERTEX_SHADER,   gltfviewer::gStaticVertexShader},
+                    {GL_FRAGMENT_SHADER, aFragmentSource},
+            }));
+            setLights(*phong);
+            mPrograms[aShadingModel].emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
+            }
 
-    {
-        auto phong = std::make_shared<graphics::Program>(
-            graphics::makeLinkedProgram({
-                {GL_VERTEX_SHADER,   gltfviewer::gStaticVertexShader},
-                {GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
-        }));
-        setLights(*phong);
-        mPrograms[ShadingModel::Phong].emplace(GpuProgram::InstancedNoAnimation, std::move(phong));
-    }
+        {
+            auto skinning = std::make_shared<graphics::Program>(
+                graphics::makeLinkedProgram({
+                    {GL_VERTEX_SHADER,   gltfviewer::gSkeletalVertexShader},
+                    {GL_FRAGMENT_SHADER, aFragmentSource},
+            }));
+            if(auto paletteBlockId = glGetUniformBlockIndex(*skinning, "MatrixPalette");
+               paletteBlockId != GL_INVALID_INDEX)
+            {
+                glUniformBlockBinding(*skinning, paletteBlockId, gPaletteBlockBinding);
+            }
+            else
+            {
+                throw std::logic_error{"Uniform block name could not be found."};
+            }
+            setLights(*skinning);
+            mPrograms[aShadingModel].emplace(GpuProgram::Skinning, std::move(skinning));
+        }
+    };
 
-    {
-        auto skinning = std::make_shared<graphics::Program>(
-            graphics::makeLinkedProgram({
-                {GL_VERTEX_SHADER,   gltfviewer::gSkeletalVertexShader},
-                {GL_FRAGMENT_SHADER, gltfviewer::gPbrFragmentShader.c_str()},
-        }));
-        if(auto paletteBlockId = glGetUniformBlockIndex(*skinning, "MatrixPalette");
-           paletteBlockId != GL_INVALID_INDEX)
-        {
-            glUniformBlockBinding(*skinning, paletteBlockId, gPaletteBlockBinding);
-        }
-        else
-        {
-            throw std::logic_error{"Uniform block name could not be found."};
-        }
-        setLights(*skinning);
-        mPrograms[ShadingModel::Pbr].emplace(GpuProgram::Skinning, std::move(skinning));
-    }
-
-    {
-        auto skinning = std::make_shared<graphics::Program>(
-            graphics::makeLinkedProgram({
-                {GL_VERTEX_SHADER,   gltfviewer::gSkeletalVertexShader},
-                {GL_FRAGMENT_SHADER, gltfviewer::gPhongFragmentShader},
-        }));
-        if(auto paletteBlockId = glGetUniformBlockIndex(*skinning, "MatrixPalette");
-           paletteBlockId != GL_INVALID_INDEX)
-        {
-            glUniformBlockBinding(*skinning, paletteBlockId, gPaletteBlockBinding);
-        }
-        else
-        {
-            throw std::logic_error{"Uniform block name could not be found."};
-        }
-        setLights(*skinning);
-        mPrograms[ShadingModel::Phong].emplace(GpuProgram::Skinning, std::move(skinning));
-    }
+    insertPrograms(ShadingModel::PbrReference, gltfviewer::gPbrFragmentShader.c_str());
+    insertPrograms(ShadingModel::PbrLearn, gltfviewer::gPbrLearnFragmentShader.c_str());
+    insertPrograms(ShadingModel::Phong, gltfviewer::gPhongFragmentShader);
 }
 
 
@@ -337,6 +354,30 @@ void Renderer::showRendererOptions()
         }
         ImGui::EndCombo();
     }
+
+    if (mShadingModel == ShadingModel::PbrLearn)
+    {
+        if (ImGui::BeginCombo("Color output", to_string(mColorOutput).c_str()))
+        {
+            for (int colorId = 0; colorId < static_cast<int>(DebugColor::_End); ++colorId)
+            {
+                DebugColor output = static_cast<DebugColor>(colorId);
+                const bool isSelected = (mColorOutput == output);
+                if (ImGui::Selectable(to_string(output).c_str(), isSelected))
+                {
+                    mColorOutput = output;
+                }
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+
     ImGui::End();
 }
 

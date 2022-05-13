@@ -14,6 +14,7 @@ set(${TARGET_NAME}_HEADERS
     Scene.h
     Shaders.h
     ShadersPbr.h
+    ShadersPbr_learnopengl.h
     SkeletalAnimation.h
     Url.h
     UserOptions.h
