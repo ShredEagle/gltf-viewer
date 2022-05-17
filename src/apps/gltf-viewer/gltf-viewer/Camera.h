@@ -34,6 +34,9 @@ math::Matrix<4, 4, float> getProjection(arte::Const_Owned<arte::gltf::Camera> aC
                                         float aAspectRatio);
 
 
+math::Radian<GLfloat> defaultVerticalFov();
+
+
 /// \brief Models the custom camera, allowing user control of the point of view like modeling tools.
 class UserCamera
 {
@@ -52,10 +55,13 @@ public:
     void setOrigin(math::Position<3, GLfloat> aNewOrigin)
     { mPolarOrigin = aNewOrigin; }
 
+    void setDistance(GLfloat aNewDistance)
+    { mPosition.r = aNewDistance; }
+
+    void setViewedBox(math::Box<GLfloat> aSceneBoundingBox);
+
     /// \return Projection matrix.
     math::Matrix<4, 4, float> getProjectionTransform();
-
-    void setViewedHeight(GLfloat aHeight);
 
     void appendProjectionControls();
 
@@ -68,17 +74,19 @@ private:
     };
 
     std::shared_ptr<graphics::AppInterface> mAppInterface;
-    Polar mPosition{1.f};
+    Polar mPosition{1.f}; // Radius will be overriden by setViewBoxed()
     math::Position<3, GLfloat> mPolarOrigin{0.f, 0.f, 0.f};
     ControlMode mControlMode;
     math::Position<2, GLfloat> mPreviousDragPosition{0.f, 0.f};
-    GLfloat mCurrentProjectionHeight;
+    math::Radian<GLfloat> mVerticalFov{defaultVerticalFov()};
     bool mPerspectiveProjection{false};
+    GLfloat mNearPlaneDistance{0.1f}; // Arbitrary initial value
+    GLfloat mViewedDepth{1000.f}; // Will be overriden by setViewBoxed()
 
     static constexpr math::Position<3, GLfloat> gGazePoint{0.f, 0.f, 0.f};
     static constexpr math::Vec<2, GLfloat> gMouseControlFactor{1/700.f, 1/700.f};
-    static constexpr GLfloat gViewedDepth = 100;
     static constexpr GLfloat gScrollFactor = 0.05;
+    static constexpr GLfloat gViewportHeightFactor = 1.6f;
 };
 
 
@@ -111,12 +119,9 @@ public:
 
 
 private:
-    // TODO prefix m
     std::optional<std::size_t> mSelectedCamera;
     std::vector<CameraInstance> mCameraInstances;
     UserCamera mCustomCamera;
-
-    static constexpr GLfloat gViewportHeightFactor = 1.6f;
 };
 
 } // namespace gltfviewer

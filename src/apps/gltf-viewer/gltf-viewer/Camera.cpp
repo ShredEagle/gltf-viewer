@@ -2,6 +2,8 @@
 
 #include <imgui.h>
 
+#include <algorithm>
+
 
 namespace ad {
 namespace gltfviewer {
@@ -83,23 +85,32 @@ math::Radian<GLfloat> getVerticalFov(GLfloat aScreenHeight, GLfloat aScreenDista
 }
 
 
-math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
+math::Radian<GLfloat> defaultVerticalFov()
 {
     //float projectionHeight = mCurrentProjectionHeight;
-    GLfloat screenHeight = 0.36347f; // Height of an ideal 16/10 27" screen.
-    GLfloat screenDistance = 0.6f; // Screen at 60cm from the eyes.
+    constexpr GLfloat screenHeight = 0.36347f; // Height of an ideal 16/10 27" screen.
+    constexpr GLfloat screenDistance = 0.6f; // Screen at 60cm from the eyes.
+    return getVerticalFov(screenHeight, screenDistance);
+}
 
-    float nearPlaneZ = -0.1f; // Arbitrarly decided that we can get this close to objects
 
-    math::Radian verticalFov = getVerticalFov(screenHeight, screenDistance); 
-    GLfloat projectionHeight = 2 * tan(verticalFov / 2)
+math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
+{
+    float nearPlaneZ = -mNearPlaneDistance;
+
+    // For perspective, get the height of the near plane.
+    //   (to use same near plane in perspective matrix and projection matrix).
+    // For orthographic, get the height at the polar origin.
+    // This implements "apparent size consistency" for dimensions in the plane containing polar origin
+    // and perpendicalur to view vector.
+    GLfloat projectionHeight = 2 * tan(mVerticalFov / 2)
                                * std::abs(mPerspectiveProjection ? nearPlaneZ : mPosition.r);
 
     const math::Box<GLfloat> projectedBox = graphics::getViewVolumeRightHanded(
         mAppInterface->getWindowSize(),
         projectionHeight,
         nearPlaneZ,
-        gViewedDepth);
+        mViewedDepth);
 
     math::Matrix<4, 4, float> projectionTransform = 
         math::trans3d::orthographicProjection(projectedBox)
@@ -107,17 +118,11 @@ math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
 
     if(mPerspectiveProjection)
     {
-        auto perspective = math::trans3d::perspective(nearPlaneZ, (nearPlaneZ - gViewedDepth));
+        auto perspective = math::trans3d::perspective(nearPlaneZ, (nearPlaneZ - mViewedDepth));
         projectionTransform = perspective * projectionTransform;
     }
 
     return projectionTransform;
-}
-
-
-void UserCamera::setViewedHeight(GLfloat aHeight)
-{
-    mCurrentProjectionHeight = aHeight;
 }
 
 
@@ -143,7 +148,12 @@ void UserCamera::callbackCursorPosition(double xpos, double ypos)
     case ControlMode::Pan:
     {
         auto dragVector{cursorPosition - mPreviousDragPosition};
-        dragVector *= mCurrentProjectionHeight / mAppInterface->getWindowSize().height();
+
+        // View height in the plane of the polar origin (plane perpendicular to the view vector)
+        // (the view height depends on the "plane distance" in the perspective case).
+        GLfloat viewHeight = 2 * tan(mVerticalFov / 2) * std::abs(mPosition.r);
+        dragVector *= viewHeight / mAppInterface->getWindowSize().height();
+
         mPolarOrigin -= dragVector.x() * mPosition.getCCWTangent().normalize() 
                         - dragVector.y() * mPosition.getUpTangent().normalize();
         break;
@@ -179,7 +189,32 @@ void UserCamera::callbackMouseButton(int button, int action, int mods, double xp
 void UserCamera::callbackScroll(double xoffset, double yoffset)
 {
     auto factor = (1 - yoffset * gScrollFactor);
-    setViewedHeight(mCurrentProjectionHeight * factor);
+    mPosition.r *= factor;
+}
+
+
+void UserCamera::setViewedBox(math::Box<GLfloat> aSceneBoundingBox)
+{
+    setOrigin(aSceneBoundingBox.center());
+    setDistance(
+        (aSceneBoundingBox.height() / 2 * gViewportHeightFactor) / tan(mVerticalFov/2) 
+        + aSceneBoundingBox.depth() / 2);
+
+    //
+    // Approximate a "round" view depth, with candidates being powers of 10
+    //
+
+    // The distance of the far plane from the camera
+    GLfloat farPlane = mPosition.r + aSceneBoundingBox.depth() / 2;
+    for(int power = 0; ; ++power)
+    {
+        // 8 as an arbitrary factor.
+        if(GLfloat depth = std::pow(10, power); depth >= 8 * farPlane)
+        {
+            mViewedDepth = depth;
+            break;
+        }
+    }
 }
 
 
@@ -196,8 +231,7 @@ void CameraSystem::setViewedBox(math::Box<GLfloat> aSceneBoundingBox)
     ADLOG(gPrepareLogger, info)
          ("Centering camera on {}, scene bounding box is {}.",
           aSceneBoundingBox.center(), aSceneBoundingBox);
-    mCustomCamera.setOrigin(aSceneBoundingBox.center());
-    mCustomCamera.setViewedHeight(aSceneBoundingBox.height() * gViewportHeightFactor);
+    mCustomCamera.setViewedBox(aSceneBoundingBox);
 }
 
 
@@ -285,6 +319,10 @@ void CameraSystem::appendCameraControls()
 
 void UserCamera::appendProjectionControls()
 {
+    std::string distance{"Camera distance: "};
+    distance += std::to_string(mPosition.r);
+    ImGui::Text(distance.c_str());
+
     auto nameProjection = [&]()
     {
         if(mPerspectiveProjection) return "Perspective";
@@ -314,6 +352,16 @@ void UserCamera::appendProjectionControls()
         }
 
         ImGui::EndCombo();
+    }
+
+    ImGui::SliderAngle("Vertical FOV", &mVerticalFov.data(), 1.f, 180.f, "%.2f");
+    if(ImGui::InputFloat("Near plane", &mNearPlaneDistance, 0.1f, 1.0f, "%.2f"))
+    {
+        mNearPlaneDistance = std::clamp(mNearPlaneDistance, 0.01f, 100.f);
+    }
+    if(ImGui::InputFloat("Viewed depth", &mViewedDepth, 1.f, 10.f, "%.1f"))
+    {
+        mViewedDepth = std::clamp(mViewedDepth, 1.f, 1000000.f);
     }
 }
 
