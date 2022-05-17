@@ -77,26 +77,37 @@ math::AffineMatrix<4, GLfloat> UserCamera::getViewTransform()
 }
 
 
+math::Radian<GLfloat> getVerticalFov(GLfloat aScreenHeight, GLfloat aScreenDistance)
+{
+    return 2 * math::atan<math::Radian_tag>((aScreenHeight / 2) / aScreenDistance); 
+}
+
+
 math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
 {
     //float projectionHeight = mCurrentProjectionHeight;
-    float projectionHeight = 0.36347f; // Height of an ideal 16/10 27" screen.
-    //float nearPlaneZ = 0.1f; // Arbitrarly decided that we can get this close to objects
-    float nearPlaneZ = 50.0f; // Arbitrarly decided that we can get this close to objects
-    float screenPlaneZ = -0.6f; // Screen at 60cm from the eyes.
+    GLfloat screenHeight = 0.36347f; // Height of an ideal 16/10 27" screen.
+    GLfloat screenDistance = 0.6f; // Screen at 60cm from the eyes.
 
-    const math::Box<GLfloat> projectedBox =
-        graphics::getViewVolumeRightHanded(mAppInterface->getWindowSize(), 
-                                           projectionHeight,
-                                           nearPlaneZ,
-                                           gViewedDepth);
+    float nearPlaneZ = -0.1f; // Arbitrarly decided that we can get this close to objects
+
+    math::Radian verticalFov = getVerticalFov(screenHeight, screenDistance); 
+    GLfloat projectionHeight = 2 * tan(verticalFov / 2)
+                               * std::abs(mPerspectiveProjection ? nearPlaneZ : mPosition.r);
+
+    const math::Box<GLfloat> projectedBox = graphics::getViewVolumeRightHanded(
+        mAppInterface->getWindowSize(),
+        projectionHeight,
+        nearPlaneZ,
+        gViewedDepth);
+
     math::Matrix<4, 4, float> projectionTransform = 
         math::trans3d::orthographicProjection(projectedBox)
         * math::trans3d::scale(1.f, 1.f, -1.f); // OpenGL clipping space is left handed.
 
     if(mPerspectiveProjection)
     {
-        auto perspective = math::trans3d::perspective(screenPlaneZ, (nearPlaneZ - gViewedDepth));
+        auto perspective = math::trans3d::perspective(nearPlaneZ, (nearPlaneZ - gViewedDepth));
         projectionTransform = perspective * projectionTransform;
     }
 
