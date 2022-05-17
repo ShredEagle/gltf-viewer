@@ -57,6 +57,8 @@ public:
 
     void setViewedHeight(GLfloat aHeight);
 
+    void appendProjectionControls();
+
 private:
     enum class ControlMode
     {
@@ -66,11 +68,12 @@ private:
     };
 
     std::shared_ptr<graphics::AppInterface> mAppInterface;
-    Polar mPosition{3.f};
+    Polar mPosition{1.f};
     math::Position<3, GLfloat> mPolarOrigin{0.f, 0.f, 0.f};
     ControlMode mControlMode;
     math::Position<2, GLfloat> mPreviousDragPosition{0.f, 0.f};
     GLfloat mCurrentProjectionHeight;
+    bool mPerspectiveProjection{false};
 
     static constexpr math::Position<3, GLfloat> gGazePoint{0.f, 0.f, 0.f};
     static constexpr math::Vec<2, GLfloat> gMouseControlFactor{1/700.f, 1/700.f};

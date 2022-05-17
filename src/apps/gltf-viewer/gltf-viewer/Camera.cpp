@@ -79,11 +79,26 @@ math::AffineMatrix<4, GLfloat> UserCamera::getViewTransform()
 
 math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
 {
+    //float projectionHeight = mCurrentProjectionHeight;
+    float projectionHeight = 0.36347f; // Height of an ideal 16/10 27" screen.
+    //float nearPlaneZ = 0.1f; // Arbitrarly decided that we can get this close to objects
+    float nearPlaneZ = 50.0f; // Arbitrarly decided that we can get this close to objects
+    float screenPlaneZ = -0.6f; // Screen at 60cm from the eyes.
+
     const math::Box<GLfloat> projectedBox =
-        graphics::getViewVolumeRightHanded(mAppInterface->getWindowSize(), mCurrentProjectionHeight, gViewedDepth, 2*gViewedDepth);
+        graphics::getViewVolumeRightHanded(mAppInterface->getWindowSize(), 
+                                           projectionHeight,
+                                           nearPlaneZ,
+                                           gViewedDepth);
     math::Matrix<4, 4, float> projectionTransform = 
         math::trans3d::orthographicProjection(projectedBox)
         * math::trans3d::scale(1.f, 1.f, -1.f); // OpenGL clipping space is left handed.
+
+    if(mPerspectiveProjection)
+    {
+        auto perspective = math::trans3d::perspective(screenPlaneZ, (nearPlaneZ - gViewedDepth));
+        projectionTransform = perspective * projectionTransform;
+    }
 
     return projectionTransform;
 }
@@ -208,49 +223,86 @@ math::Matrix<4, 4, float> CameraSystem::getProjectionTransform(std::shared_ptr<g
 void CameraSystem::appendCameraControls()
 {
     // Camera selection
-    if(!mCameraInstances.empty())
-    {
-        auto nameCamera = [&](std::size_t aId)
-        { 
-            std::ostringstream oss;
-            oss << "#" << aId << " (" << arte::to_string(mCameraInstances[aId].gltfCamera->type);
-            if (!mCameraInstances[aId].gltfCamera->name.empty())
-            {
-                oss << " '" << mCameraInstances[aId].gltfCamera->name << "'";
-            }
-            oss << ")";
-            return oss.str();
-        };
-
-        const std::string customCameraName = "User camera";
-        std::string preview = mSelectedCamera ? nameCamera(*mSelectedCamera) : customCameraName;
-        if (ImGui::BeginCombo("Camera", preview.c_str()))
+    auto nameCamera = [&](std::size_t aId)
+    { 
+        std::ostringstream oss;
+        oss << "#" << aId << " (" << arte::to_string(mCameraInstances[aId].gltfCamera->type);
+        if (!mCameraInstances[aId].gltfCamera->name.empty())
         {
-            if (ImGui::Selectable(customCameraName.c_str(), !mSelectedCamera))
+            oss << " '" << mCameraInstances[aId].gltfCamera->name << "'";
+        }
+        oss << ")";
+        return oss.str();
+    };
+
+    const std::string customCameraName = "User camera";
+    std::string preview = mSelectedCamera ? nameCamera(*mSelectedCamera) : customCameraName;
+    if (ImGui::BeginCombo("Camera", preview.c_str()))
+    {
+        if (ImGui::Selectable(customCameraName.c_str(), !mSelectedCamera))
+        {
+            mSelectedCamera = std::nullopt;
+        }
+        if (!mSelectedCamera)
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        for (int id = 0; id < mCameraInstances.size(); ++id)
+        {
+            const bool isSelected = (mSelectedCamera && *mSelectedCamera == id);
+            if (ImGui::Selectable(nameCamera(id).c_str(), isSelected))
             {
-                mSelectedCamera = std::nullopt;
+                mSelectedCamera = id;
             }
-            if (!mSelectedCamera)
+
+            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+            if (isSelected)
             {
                 ImGui::SetItemDefaultFocus();
             }
-
-            for (int id = 0; id < mCameraInstances.size(); ++id)
-            {
-                const bool isSelected = (mSelectedCamera && *mSelectedCamera == id);
-                if (ImGui::Selectable(nameCamera(id).c_str(), isSelected))
-                {
-                    mSelectedCamera = id;
-                }
-
-                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-                if (isSelected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
         }
+        ImGui::EndCombo();
+    }
+
+    if (!mSelectedCamera)
+    {
+        mCustomCamera.appendProjectionControls();
+    }
+}
+
+
+void UserCamera::appendProjectionControls()
+{
+    auto nameProjection = [&]()
+    {
+        if(mPerspectiveProjection) return "Perspective";
+        else return "Orthographic";
+    };
+
+    if (ImGui::BeginCombo("Projection", nameProjection()))
+    {
+        if (ImGui::Selectable("Perspective", mPerspectiveProjection))
+        {
+            mPerspectiveProjection = true;
+        }
+
+        if (mPerspectiveProjection)
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        if (ImGui::Selectable("Orhtographic", !mPerspectiveProjection))
+        {
+            mPerspectiveProjection = false;
+        }
+
+        if (!mPerspectiveProjection)
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
     }
 }
 
