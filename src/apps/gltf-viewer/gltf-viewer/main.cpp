@@ -3,6 +3,7 @@
 #include "GltfRendering.h"
 #include "ImguiUi.h"
 #include "Scene.h"
+#include "SceneIblProto.h"
 
 #include <arte/gltf/Gltf.h>
 #include <arte/Logging.h>
@@ -27,7 +28,8 @@ po::variables_map handleCommandLineArguments(int argc, const char ** argv)
     po::options_description desc("Gltf viewer.");
     desc.add_options()
         ("help", "Produce help message.")
-        ("gltf-path", po::value<std::string>()->required(), "Path to a glTF file to be viewed.");
+        ("gltf-path", po::value<std::string>()->required(), "Path to a glTF file to be viewed.")
+        ("env-path", po::value<std::string>(), "Path to an optional environment map.")
     ;
 
     po::positional_options_description positional;
@@ -113,7 +115,21 @@ int main(int argc, const char * argv[])
         ImguiUi imgui{application};
 
         // Requires OpenGL context to call gl functions
+#define IBL
+#if defined(IBL)
+        if(!arguments.count("env-path"))
+        {
+            ADLOG(gPrepareLogger, critical)("Environment map is required in IBL proto mode.");
+            std::exit(EXIT_FAILURE);
+        }
+        SceneIblProto viewerScene{
+            application.getAppInterface(),
+            imgui,
+            arguments["env-path"].as<std::string>()
+        };
+#else
         Scene viewerScene{gltf, gltfSceneIndex, application.getAppInterface(), imgui};
+#endif
 
         Timer timer{glfwGetTime(), 0.};
 
@@ -121,12 +137,7 @@ int main(int argc, const char * argv[])
         while(application.nextFrame())
         {
             imgui.startFrame();
-            showUserOptionsWindow(viewerScene.options);
             viewerScene.showSceneControls();
-            if(viewerScene.options.showImguiDemo)
-            {
-                ImGui::ShowDemoWindow(&viewerScene.options.showImguiDemo);
-            }
 
             application.getAppInterface()->clear();
 

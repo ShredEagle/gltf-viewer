@@ -12,6 +12,7 @@ set(${TARGET_NAME}_HEADERS
     Mesh.h
     Polar.h
     Scene.h
+    SceneIblProto.h
     Shaders.h
     ShadersPbr.h
     ShadersPbr_learnopengl.h
@@ -31,6 +32,7 @@ set(${TARGET_NAME}_SOURCES
     main.cpp
     Mesh.cpp
     Scene.cpp
+    SceneIblProto.cpp
     SkeletalAnimation.cpp
 )
 

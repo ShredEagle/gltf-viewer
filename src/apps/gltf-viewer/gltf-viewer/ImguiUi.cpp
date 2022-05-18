@@ -86,6 +86,11 @@ void showUserOptionsWindow(UserOptions & aOptions)
     ImGui::Checkbox("Show skeletons", &aOptions.showSkeletons);
     ImGui::Checkbox("Show Imgui demo window", &aOptions.showImguiDemo);
     ImGui::End();
+
+    if(aOptions.showImguiDemo)
+    {
+        ImGui::ShowDemoWindow(&aOptions.showImguiDemo);
+    }
 }
 
 

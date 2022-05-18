@@ -114,6 +114,8 @@ Scene::getBoundingBox(arte::Const_Owned<arte::gltf::Scene> aScene) const
 //
 void Scene::showSceneControls()
 {
+    showUserOptionsWindow(options);
+
     ImGui::Begin("Scene options");
 
     // Animation selection
