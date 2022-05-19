@@ -14,6 +14,7 @@ set(${TARGET_NAME}_HEADERS
     Scene.h
     SceneIblProto.h
     Shaders.h
+    ShadersIblProto.h
     ShadersPbr.h
     ShadersPbr_learnopengl.h
     SkeletalAnimation.h

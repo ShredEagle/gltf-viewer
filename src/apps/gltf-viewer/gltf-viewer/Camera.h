@@ -60,8 +60,14 @@ public:
 
     void setViewedBox(math::Box<GLfloat> aSceneBoundingBox);
 
-    /// \return Projection matrix.
+    /// \brief Return the projection transform.
+    ///
+    /// \param aOrthographicPerspectiveEquivalence The depth of the plane in which orthographic and perspective
+    /// projections result in the same screen size.
+    math::Matrix<4, 4, float> getProjectionTransform(GLfloat aOrthographicPerspectiveEquivalence);
+    /// \brief Return the projection transform, with the plane of orthographic/perspective equivalence at orbital origin.
     math::Matrix<4, 4, float> getProjectionTransform();
+
 
     void appendProjectionControls();
 
@@ -87,6 +93,8 @@ private:
     static constexpr math::Vec<2, GLfloat> gMouseControlFactor{1/700.f, 1/700.f};
     static constexpr GLfloat gScrollFactor = 0.05;
     static constexpr GLfloat gViewportHeightFactor = 1.6f;
+    static constexpr GLfloat gMinCameraDistance = 0.001f;
+    static constexpr GLfloat gMaxCameraDistance = 1E6f;
 };
 
 
@@ -99,6 +107,7 @@ public:
 
     math::AffineMatrix<4, GLfloat> getViewTransform();
     math::Matrix<4, 4, float> getProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);
+    math::Matrix<4, 4, float> getCubemapProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);
 
     void appendCameraControls();
 

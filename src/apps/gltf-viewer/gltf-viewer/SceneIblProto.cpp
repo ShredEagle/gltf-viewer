@@ -1,6 +1,6 @@
 #include "SceneIblProto.h"
 
-#include "Shaders.h"
+#include "ShadersIblProto.h"
 
 #include <renderer/GL_Loader.h>
 #include <renderer/Uniforms.h>
@@ -74,9 +74,6 @@ graphics::Texture loadCubemap(const filesystem::path & aFolder, filesystem::path
 
     auto loadData = [&cubemap](const ImageType & aImage, std::size_t aFaceId)
     {
-        // Bind each time, some calls might be using a scoped guard which unbinds at the end...
-        graphics::bind_guard boundCubemap{cubemap};
-
         Guard scopedAlignemnt = graphics::detail::scopeUnpackAlignment(aImage.rowAlignment());
         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + aFaceId,
                         0, // base mipmap level
@@ -93,6 +90,10 @@ graphics::Texture loadCubemap(const filesystem::path & aFolder, filesystem::path
     filename += aExtension;
     auto image = ImageType{aFolder / filename};
     allocateStorage(cubemap, GL_RGBA8, image.dimensions());
+
+    // Cannot bind earlier, allocate storage scopes the bind...
+    graphics::bind_guard boundCubemap{cubemap};
+
     loadData(image, faceId);
 
     for(++faceId; faceId != indexToFilename.size(); ++faceId)
@@ -103,49 +104,16 @@ graphics::Texture loadCubemap(const filesystem::path & aFolder, filesystem::path
         loadData(image, faceId);
     }
 
+    // No mipmap atm though
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
     return cubemap;
 }
 
-
-inline const GLchar* gIblVertexShader = R"#(
-    #version 400
-
-    layout(location=0) in vec4 ve_position;
-
-    uniform mat4 u_camera;
-    uniform mat4 u_projection;
-
-    out vec4 ex_color;
-    out vec4 ex_position_view;
-    out vec3 ex_position_local;
-
-    void main(void)
-    {
-        ex_position_local = ve_position.xyz;
-
-        mat4 modelViewTransform = u_camera;
-        ex_position_view = modelViewTransform * ve_position;
-        ex_color = vec4(1., 0., 0., 1.);
-
-        gl_Position = u_projection * ex_position_view;
-    }
-)#";
-
-inline const GLchar* gIblFragmentShader = R"#(
-    #version 400
-
-    in vec3 ex_position_local;
-    in vec4 ex_color;
-
-    out vec4 out_color;
-
-    uniform samplerCube u_cubemap;
-
-    void main(void)
-    {
-        out_color = texture(u_cubemap, ex_position_local);
-    }
-)#";
 
 } // anonymous namespace
 
@@ -159,13 +127,18 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     mCubeIndices{loadIndexBuffer<const GLushort>(
         mVao, gCubeIndices, graphics::BufferHint::StaticRead)
     },
-    mProgram{graphics::makeLinkedProgram({
+    mCubemapProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gIblVertexShader},
+        {GL_FRAGMENT_SHADER, gIblFragmentShader},
+    })},
+    mModelProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
         {GL_FRAGMENT_SHADER, gIblFragmentShader},
     })},
     mCubemap{loadCubemap(aEnvironmentMap)}
 {
-    setUniformInt(mProgram, "u_cubemap", gCubemapTextureUnit);
+    setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
+    setUniformInt(mModelProgram, "u_cubemap", gCubemapTextureUnit);
 }
 
 
@@ -173,12 +146,22 @@ void IblRenderer::render() const
 {
     graphics::bind_guard boundVao{mVao};
     graphics::bind_guard boundIbo{mCubeIndices};
-    graphics::bind_guard boundProgram{mProgram};
 
     glActiveTexture(GL_TEXTURE0 + gCubemapTextureUnit);
     graphics::bind_guard boundCubemap{mCubemap};
+   
+    // Render skybox
+    {
+        auto depthMaskGuard = graphics::scopeDepthMask(false);
+        graphics::bind_guard boundProgram{mCubemapProgram};
+        glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
+    }
 
-    glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
+    // Render model (a cube)
+    {
+        graphics::bind_guard boundProgram{mModelProgram};
+        glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
+    }
 }
 
 
@@ -189,22 +172,27 @@ void SceneIblProto::render() const
 }
 
 
-void SceneIblProto::setView(const math::AffineMatrix<4, float> & aViewTransform)
+void SceneIblProto::setView()
 {
-    setUniform(mRenderer.mProgram, "u_camera", aViewTransform); 
+    math::AffineMatrix<4, GLfloat> viewOrientation{mCameraSystem.getViewTransform().getLinear()};
+    setUniform(mRenderer.mCubemapProgram, "u_camera", viewOrientation); 
+    setUniform(mRenderer.mModelProgram, "u_camera", mCameraSystem.getViewTransform()); 
 }
 
 
-void SceneIblProto::setProjection(const math::Matrix<4, 4, float> & aProjectionTransform)
+void SceneIblProto::setProjection()
 {
-    setUniform(mRenderer.mProgram, "u_projection", aProjectionTransform); 
+    setUniform(mRenderer.mCubemapProgram, "u_projection", mCameraSystem.getCubemapProjectionTransform(mAppInterface)); 
+    setUniform(mRenderer.mModelProgram, "u_projection", mCameraSystem.getProjectionTransform(mAppInterface)); 
 }
 
 
 void SceneIblProto::showSceneControls()
 {
     ImGui::Begin("Scene options");
+    mCameraSystem.appendCameraControls();
     ImGui::End();
+
 }
 
 

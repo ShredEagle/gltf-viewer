@@ -28,7 +28,8 @@ struct IblRenderer
     graphics::VertexArrayObject mVao;
     graphics::VertexBufferObject mCubeVertices;
     graphics::IndexBufferObject mCubeIndices;
-    graphics::Program mProgram;
+    graphics::Program mCubemapProgram;
+    graphics::Program mModelProgram;
     graphics::Texture mCubemap;
 
     static constexpr GLsizei gCubemapTextureUnit{3};
@@ -57,16 +58,16 @@ struct SceneIblProto
             std::bind(&SceneIblProto::callbackScroll, this, _1, _2));
     }
 
-    void setView(const math::AffineMatrix<4, float> & aViewTransform);
-    void setProjection(const math::Matrix<4, 4, float> & aProjectionTransform);
+    void setView();
+    void setProjection();
 
     void showSceneControls();
 
     void update(const graphics::Timer &)
     {
-        setView(mCameraSystem.getViewTransform());
+        setView();
         // This is a bit greedy, as the projection transform rarely changes compared to the view.
-        setProjection(mCameraSystem.getProjectionTransform(mAppInterface));
+        setProjection();
     }
 
     void render() const;

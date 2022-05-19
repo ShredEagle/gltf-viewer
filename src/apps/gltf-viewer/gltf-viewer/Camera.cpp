@@ -94,7 +94,7 @@ math::Radian<GLfloat> defaultVerticalFov()
 }
 
 
-math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
+math::Matrix<4, 4, float> UserCamera::getProjectionTransform(GLfloat aOrthographicPerspectiveEquivalence)
 {
     float nearPlaneZ = -mNearPlaneDistance;
 
@@ -104,7 +104,7 @@ math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
     // This implements "apparent size consistency" for dimensions in the plane containing polar origin
     // and perpendicalur to view vector.
     GLfloat projectionHeight = 2 * tan(mVerticalFov / 2)
-                               * std::abs(mPerspectiveProjection ? nearPlaneZ : mPosition.r);
+                               * std::abs(mPerspectiveProjection ? nearPlaneZ : aOrthographicPerspectiveEquivalence);
 
     const math::Box<GLfloat> projectedBox = graphics::getViewVolumeRightHanded(
         mAppInterface->getWindowSize(),
@@ -123,6 +123,12 @@ math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
     }
 
     return projectionTransform;
+}
+
+
+math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
+{
+    return getProjectionTransform(mPosition.r);
 }
 
 
@@ -190,6 +196,7 @@ void UserCamera::callbackScroll(double xoffset, double yoffset)
 {
     auto factor = (1 - yoffset * gScrollFactor);
     mPosition.r *= factor;
+    mPosition.r = std::clamp(mPosition.r, gMinCameraDistance, gMaxCameraDistance);
 }
 
 
@@ -253,6 +260,21 @@ math::Matrix<4, 4, float> CameraSystem::getProjectionTransform(std::shared_ptr<g
     if (!mSelectedCamera)
     {
         return mCustomCamera.getProjectionTransform();
+    }
+    else
+    {
+        return getProjection(mCameraInstances[*mSelectedCamera].gltfCamera,
+                             getRatio<GLfloat>(aAppInterface->getFramebufferSize()));
+    }
+}
+
+
+math::Matrix<4, 4, float> CameraSystem::getCubemapProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface)
+{
+    if (!mSelectedCamera)
+    {
+        constexpr GLfloat gCubemapDepth = 1.f;
+        return mCustomCamera.getProjectionTransform(gCubemapDepth);
     }
     else
     {
