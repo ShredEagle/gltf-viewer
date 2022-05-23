@@ -63,7 +63,7 @@ void populateMeshRepository(MeshRepository & aRepository,
             {
                 auto [it, didInsert] = aRepository.emplace(
                     *node->mesh,
-                    prepare(node.get(&arte::gltf::Node::mesh)));
+                    MeshInstances{prepare(node.get(&arte::gltf::Node::mesh))});
                 ADLOG(gPrepareLogger, info)("Completed GPU loading for mesh '{}'.", it->second.mesh);
             }
             // Only populates skins that are actually present in this scene.
