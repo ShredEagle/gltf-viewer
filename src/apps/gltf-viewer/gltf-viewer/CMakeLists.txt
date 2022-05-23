@@ -60,7 +60,8 @@ target_include_directories(${TARGET_NAME}
 ##
 ## Dependencies
 ##
-find_package(Graphics CONFIG REQUIRED COMPONENTS arte graphics resource)
+find_package(Graphics CONFIG REQUIRED COMPONENTS arte graphics)
+find_package(Handy CONFIG REQUIRED COMPONENTS resource)
 
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(imgui REQUIRED)
