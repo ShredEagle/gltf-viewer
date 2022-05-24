@@ -298,7 +298,7 @@ void IblRenderer::render() const
     {
         graphics::bind_guard boundCubemap{mIrradianceCubemap};
         graphics::bind_guard boundProgram{mModelProgram};
-        mCube.draw();
+        mSphere.draw();
     }
 }
 

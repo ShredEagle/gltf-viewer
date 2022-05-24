@@ -18,6 +18,7 @@ set(${TARGET_NAME}_HEADERS
     ShadersPbr.h
     ShadersPbr_learnopengl.h
     SkeletalAnimation.h
+    Sphere.h
     Url.h
     UserOptions.h
 )

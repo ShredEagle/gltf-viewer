@@ -3,6 +3,7 @@
 
 #include "Camera.h"
 #include "ImguiUi.h"
+#include "Sphere.h"
 
 #include <graphics/AppInterface.h>
 #include <graphics/Timer.h>
@@ -38,6 +39,7 @@ struct IblRenderer
     void render() const;
 
     Cube mCube;
+    Sphere mSphere;
     graphics::Program mCubemapProgram;
     graphics::Program mModelProgram;
     graphics::Texture mCubemap;
