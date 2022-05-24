@@ -55,7 +55,7 @@ namespace {
         4, 1, 5,
     };
 
-graphics::Texture loadCubemap(const filesystem::path & aFolder, filesystem::path aExtension = ".jpg")
+graphics::Texture loadFolder(const filesystem::path & aFolder, filesystem::path aExtension = ".jpg")
 {
     const std::vector<filesystem::path> indexToFilename{
         "posx",
@@ -88,8 +88,8 @@ graphics::Texture loadCubemap(const filesystem::path & aFolder, filesystem::path
     // see: https://stackoverflow.com/questions/2396548/appending-to-boostfilesystempath#comment42716010_21144232
     auto filename = indexToFilename[faceId];
     filename += aExtension;
-    auto image = ImageType{aFolder / filename};
-    allocateStorage(cubemap, GL_RGBA8, image.dimensions());
+    ImageType image{aFolder / filename};
+    allocateStorage(cubemap, GL_RGB8, image.dimensions());
 
     // Cannot bind earlier, allocate storage scopes the bind...
     graphics::bind_guard boundCubemap{cubemap};
@@ -115,6 +115,53 @@ graphics::Texture loadCubemap(const filesystem::path & aFolder, filesystem::path
 }
 
 
+graphics::Texture loadHdr(const filesystem::path & aEquirectangular)
+{
+    graphics::Texture equirect{GL_TEXTURE_2D};
+
+    std::size_t faceId = 0;
+
+    using ImageType = arte::Image<math::hdr::Rgb<GLfloat>>;
+    ImageType image{aEquirectangular, arte::ImageOrientation::InvertVerticalAxis};
+
+    allocateStorage(equirect, GL_RGB16F, image.dimensions());
+
+    // Cannot bind earlier, allocate storage scopes the bind...
+    graphics::bind_guard boundTexture{equirect};
+
+    Guard scopedAlignemnt = graphics::detail::scopeUnpackAlignment(image.rowAlignment());
+    glTexSubImage2D(GL_TEXTURE_2D,
+                    0, // base mipmap level
+                    0, 0, // offset
+                    image.dimensions().width(), image.dimensions().height(),
+                    graphics::MappedPixel_v<ImageType::pixel_format_t>,
+                    GL_FLOAT,
+                    image.data());
+
+    // No mipmap atm though
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return equirect;
+}
+
+
+graphics::Texture loadCubemap(const filesystem::path & aPath)
+{
+    if(aPath.extension() == ".hdr")
+    {
+        return loadHdr(aPath);
+    }
+    else
+    {
+        return loadFolder(aPath);
+    }
+}
+
+
 } // anonymous namespace
 
 
@@ -129,16 +176,18 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     },
     mCubemapProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gIblFragmentShader},
+        {GL_FRAGMENT_SHADER, gEquirectangularFragmentShader},
     })},
     mModelProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gIblFragmentShader},
+        {GL_FRAGMENT_SHADER, gEquirectangularFragmentShader},
     })},
     mCubemap{loadCubemap(aEnvironmentMap)}
 {
-    setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
-    setUniformInt(mModelProgram, "u_cubemap", gCubemapTextureUnit);
+    //setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
+    setUniformInt(mCubemapProgram, "u_equirectangularMap", gCubemapTextureUnit);
+    //setUniformInt(mModelProgram, "u_cubemap", gCubemapTextureUnit);
+    setUniformInt(mModelProgram, "u_equirectangularMap", gCubemapTextureUnit);
 }
 
 

@@ -46,5 +46,32 @@ inline const GLchar* gIblFragmentShader = R"#(
 )#";
 
 
+inline const GLchar* gEquirectangularFragmentShader = R"#(
+    #version 400
+
+    in vec3 ex_position_local;
+    in vec4 ex_color;
+
+    out vec4 out_color;
+
+    uniform sampler2D u_equirectangularMap;
+
+    const vec2 invAtan = vec2(0.1591, 0.3183);
+    vec2 sampleSphericalMap(vec3 v)
+    {
+        vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+        uv *= invAtan;
+        uv += 0.5;
+        return uv;
+    }
+
+    void main(void)
+    {
+        vec2 uv = sampleSphericalMap(normalize(ex_position_local));
+        out_color = texture(u_equirectangularMap, uv);
+    }
+)#";
+
+
 } // namespace gltfviewer
 } // namespace ad

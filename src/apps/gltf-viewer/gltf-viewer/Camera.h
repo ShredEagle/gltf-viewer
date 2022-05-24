@@ -85,7 +85,7 @@ private:
     ControlMode mControlMode;
     math::Position<2, GLfloat> mPreviousDragPosition{0.f, 0.f};
     math::Radian<GLfloat> mVerticalFov{defaultVerticalFov()};
-    bool mPerspectiveProjection{false};
+    bool mPerspectiveProjection{true};
     GLfloat mNearPlaneDistance{0.1f}; // Arbitrary initial value
     GLfloat mViewedDepth{1000.f}; // Will be overriden by setViewBoxed()
 
