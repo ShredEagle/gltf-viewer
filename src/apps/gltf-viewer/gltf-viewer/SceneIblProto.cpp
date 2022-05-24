@@ -2,8 +2,13 @@
 
 #include "ShadersIblProto.h"
 
+#include <graphics/CameraUtilities.h>
+
+#include <renderer/Framebuffer.h>
 #include <renderer/GL_Loader.h>
 #include <renderer/Uniforms.h>
+
+#include <math/Transformations.h>
 
 
 namespace ad {
@@ -53,6 +58,18 @@ namespace {
         // Bottom,
         0, 1, 4,
         4, 1, 5,
+    };
+
+    using graphics::getCameraTransform;
+    // TODO had to invert the up direction on the some view matrices, not sure why yet. 
+    // (might be related to the cubemap coordinate system being left-handed)
+    const std::array<math::AffineMatrix<4, GLfloat>, 6> gCaptureView{
+        getCameraTransform<GLfloat>({0.f, 0.f, 0.f}, { 1.f, 0.f, 0.f}, {0.f, -1.f, 0.f}),
+        getCameraTransform<GLfloat>({0.f, 0.f, 0.f}, {-1.f, 0.f, 0.f}, {0.f, -1.f, 0.f}),
+        getCameraTransform<GLfloat>({0.f, 0.f, 0.f}, {0.f,  1.f, 0.f}, {0.f, 0.f,  1.f}),
+        getCameraTransform<GLfloat>({0.f, 0.f, 0.f}, {0.f, -1.f, 0.f}, {0.f, 0.f, -1.f}),
+        getCameraTransform<GLfloat>({0.f, 0.f, 0.f}, {0.f, 0.f,  1.f}, {0.f, -1.f, 0.f}),
+        getCameraTransform<GLfloat>({0.f, 0.f, 0.f}, {0.f, 0.f, -1.f}, {0.f, -1.f, 0.f}),
     };
 
 graphics::Texture loadFolder(const filesystem::path & aFolder, filesystem::path aExtension = ".jpg")
@@ -162,10 +179,70 @@ graphics::Texture loadCubemap(const filesystem::path & aPath)
 }
 
 
+graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect, const Cube & aCube)
+{
+    constexpr math::Size<2, int> gIrradianceSize{128, 128};
+    constexpr GLint gTextureUnit = 0;
+
+    graphics::FrameBuffer framebuffer;
+    bind(framebuffer);
+
+    graphics::Texture cubemap{GL_TEXTURE_CUBE_MAP};
+    allocateStorage(cubemap, GL_RGB16F, gIrradianceSize);
+
+    bind(cubemap);
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    auto scopedViewport = 
+        graphics::scopeViewport({{0, 0}, {gIrradianceSize.width(), gIrradianceSize.height()}});
+
+    auto convolution = graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gIblVertexShader},
+        {GL_FRAGMENT_SHADER, gConvolutionFragmentShader},
+    });
+    bind(convolution);
+
+    glActiveTexture(GL_TEXTURE0 + gTextureUnit);
+    bind(aRadianceEquirect);
+    setUniformInt(convolution, "u_equirectangularMap", gTextureUnit);
+
+    setUniform(convolution, "u_projection",
+        math::trans3d::scale(1.f, 1.f, -1.f) // OpenGL clipping space is left handed.
+        * math::trans3d::orthographicProjection(math::Box<GLfloat>{
+            {-1.f, -1.f, 0.f}, 
+            {2.f, 2.f, 2.f}
+        })
+    ); 
+
+    for(GLint face = 0; face != 6; ++face)
+    {
+        glFramebufferTexture2D(
+            GL_DRAW_FRAMEBUFFER, 
+            GL_COLOR_ATTACHMENT0, 
+            GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
+            cubemap,
+            0);
+
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        setUniform(convolution, "u_camera", gCaptureView[face]); 
+        aCube.draw();
+    }
+
+    return cubemap;
+}
+
+
+
 } // anonymous namespace
 
 
-IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
+Cube::Cube() :
     mCubeVertices{loadVertexBuffer<const Vertex>(
         mVao,
         gVertexDescription,
@@ -173,43 +250,55 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     },
     mCubeIndices{loadIndexBuffer<const GLushort>(
         mVao, gCubeIndices, graphics::BufferHint::StaticRead)
-    },
+    }
+{}
+
+
+void Cube::draw() const
+{
+    graphics::bind_guard boundVao{mVao};
+    graphics::bind_guard boundIbo{mCubeIndices};
+    glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
+}
+
+
+IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
+    mCube{},
     mCubemapProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
         {GL_FRAGMENT_SHADER, gEquirectangularFragmentShader},
     })},
     mModelProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gEquirectangularFragmentShader},
+        {GL_FRAGMENT_SHADER, gIblFragmentShader},
     })},
-    mCubemap{loadCubemap(aEnvironmentMap)}
+    mCubemap{loadCubemap(aEnvironmentMap)},
+    mIrradianceCubemap{prepareIrradiance(mCubemap, mCube)}
 {
     //setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
     setUniformInt(mCubemapProgram, "u_equirectangularMap", gCubemapTextureUnit);
-    //setUniformInt(mModelProgram, "u_cubemap", gCubemapTextureUnit);
-    setUniformInt(mModelProgram, "u_equirectangularMap", gCubemapTextureUnit);
+    setUniformInt(mModelProgram, "u_cubemap", gCubemapTextureUnit);
+    //setUniformInt(mModelProgram, "u_equirectangularMap", gCubemapTextureUnit);
 }
 
 
 void IblRenderer::render() const
 {
-    graphics::bind_guard boundVao{mVao};
-    graphics::bind_guard boundIbo{mCubeIndices};
-
     glActiveTexture(GL_TEXTURE0 + gCubemapTextureUnit);
-    graphics::bind_guard boundCubemap{mCubemap};
    
     // Render skybox
     {
+        graphics::bind_guard boundCubemap{mCubemap};
         auto depthMaskGuard = graphics::scopeDepthMask(false);
         graphics::bind_guard boundProgram{mCubemapProgram};
-        glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
+        mCube.draw();
     }
 
     // Render model (a cube)
     {
+        graphics::bind_guard boundCubemap{mIrradianceCubemap};
         graphics::bind_guard boundProgram{mModelProgram};
-        glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
+        mCube.draw();
     }
 }
 

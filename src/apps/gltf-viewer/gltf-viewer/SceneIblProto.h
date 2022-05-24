@@ -19,18 +19,29 @@ namespace ad {
 namespace gltfviewer {
 
 
+struct Cube
+{
+    Cube();
+
+    void draw() const;
+
+    graphics::VertexArrayObject mVao;
+    graphics::VertexBufferObject mCubeVertices;
+    graphics::IndexBufferObject mCubeIndices;
+};
+
+
 struct IblRenderer
 {
     IblRenderer(const filesystem::path & aEnvironmentMap);
 
     void render() const;
 
-    graphics::VertexArrayObject mVao;
-    graphics::VertexBufferObject mCubeVertices;
-    graphics::IndexBufferObject mCubeIndices;
+    Cube mCube;
     graphics::Program mCubemapProgram;
     graphics::Program mModelProgram;
     graphics::Texture mCubemap;
+    graphics::Texture mIrradianceCubemap;
 
     static constexpr GLsizei gCubemapTextureUnit{3};
 };

@@ -72,7 +72,7 @@ uniform sampler2D u_metallicRoughnessTex;
 
 uniform int u_debugOutput;
 
-// Cannot use for switch case labels apparently
+// Cannot use as switch case labels apparently
 #define METALLIC 1;
 
 out vec4 out_color;

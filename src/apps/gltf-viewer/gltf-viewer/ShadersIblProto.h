@@ -73,5 +73,59 @@ inline const GLchar* gEquirectangularFragmentShader = R"#(
 )#";
 
 
+inline const GLchar* gConvolutionFragmentShader = R"#(
+    #version 400
+
+    const float PI = 3.14159265359;
+
+    in vec3 ex_position_local;
+    in vec4 ex_color;
+
+    out vec4 out_color;
+
+    uniform sampler2D u_equirectangularMap;
+
+    const vec2 invAtan = vec2(0.1591, 0.3183);
+    vec2 sampleSphericalMap(vec3 v)
+    {
+        vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+        uv *= invAtan;
+        uv += 0.5;
+        return uv;
+    }
+
+    void main(void)
+    {
+        vec3 irradiance = vec3(0.0);  
+
+        vec3 normal = normalize(ex_position_local); // The normal on the equivalent sphere
+        vec3 up    = vec3(0.0, 1.0, 0.0);
+        vec3 right = normalize(cross(up, normal));
+        up         = normalize(cross(normal, right));
+
+        float sampleDelta = 0.01;
+        float nrSamples = 0.0;
+        for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
+        {
+            for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+            {
+                // spherical to cartesian (in tangent space)
+                vec3 tangentSample = vec3(sin(theta) * cos(phi),  sin(theta) * sin(phi), cos(theta));
+                // tangent space to world
+                vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal; 
+
+                // world to equirectangular
+                vec2 uv = sampleSphericalMap(normalize(sampleVec));
+                irradiance += texture(u_equirectangularMap, uv).rgb * cos(theta) * sin(theta);
+                nrSamples ++; // Note: Should it be related to sin(theta)?
+                //nrSamples += sin(theta);
+            }
+        }
+        irradiance = PI * irradiance * (1.0 / float(nrSamples));
+        out_color = vec4(irradiance, 1.0);
+    }
+)#";
+
+
 } // namespace gltfviewer
 } // namespace ad
