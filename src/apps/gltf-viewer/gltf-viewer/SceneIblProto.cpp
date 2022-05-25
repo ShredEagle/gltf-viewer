@@ -181,7 +181,7 @@ graphics::Texture loadCubemap(const filesystem::path & aPath)
 
 graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect, const Cube & aCube)
 {
-    constexpr math::Size<2, int> gIrradianceSize{128, 128};
+    constexpr math::Size<2, int> gIrradianceSize{64, 64};
     constexpr GLint gTextureUnit = 0;
 
     graphics::FrameBuffer framebuffer;
@@ -263,22 +263,26 @@ void Cube::draw() const
 
 
 IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
-    mCube{},
     mCubemapProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gEquirectangularFragmentShader},
+        {GL_FRAGMENT_SHADER, gIblCubemapFragmentShader},
+    })},
+    mEquirectangularProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gIblVertexShader},
+        {GL_FRAGMENT_SHADER, gIblEquirectangularFragmentShader},
     })},
     mModelProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gIblFragmentShader},
+        {GL_FRAGMENT_SHADER, gIblPbrFragmentShader.c_str()},
     })},
     mCubemap{loadCubemap(aEnvironmentMap)},
     mIrradianceCubemap{prepareIrradiance(mCubemap, mCube)}
 {
-    //setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
-    setUniformInt(mCubemapProgram, "u_equirectangularMap", gCubemapTextureUnit);
-    setUniformInt(mModelProgram, "u_cubemap", gCubemapTextureUnit);
-    //setUniformInt(mModelProgram, "u_equirectangularMap", gCubemapTextureUnit);
+    setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
+    setUniformInt(mEquirectangularProgram, "u_equirectangularMap", gCubemapTextureUnit);
+
+    setUniform(mModelProgram, "u_baseColorFactor", math::Vec<4, GLfloat>{1.f, 1.f, 1.f, 1.f});
+    setUniformInt(mModelProgram, "u_irrandianceMap", gCubemapTextureUnit);
 }
 
 
@@ -288,18 +292,38 @@ void IblRenderer::render() const
    
     // Render skybox
     {
-        graphics::bind_guard boundCubemap{mCubemap};
+        if (mShowIrradiance)
+        {
+            bind(mIrradianceCubemap);
+            bind(mCubemapProgram);
+        }
+        else
+        {
+            bind(mCubemap);
+            bind(mEquirectangularProgram);
+        }
+
         auto depthMaskGuard = graphics::scopeDepthMask(false);
-        graphics::bind_guard boundProgram{mCubemapProgram};
         mCube.draw();
     }
 
-    // Render model (a cube)
+    // Render model
+    if(mShowObject)
     {
         graphics::bind_guard boundCubemap{mIrradianceCubemap};
         graphics::bind_guard boundProgram{mModelProgram};
+
         mSphere.draw();
     }
+}
+
+
+void IblRenderer::update()
+{
+    setUniformFloat(mModelProgram, "u_metallicFactor", mMetallic);
+    setUniformFloat(mModelProgram, "u_roughnessFactor", mRoughness);
+    setUniformFloat(mModelProgram, "u_ambientFactor", mAmbientFactor);
+    setUniformInt(mModelProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
 }
 
 
@@ -314,6 +338,7 @@ void SceneIblProto::setView()
 {
     math::AffineMatrix<4, GLfloat> viewOrientation{mCameraSystem.getViewTransform().getLinear()};
     setUniform(mRenderer.mCubemapProgram, "u_camera", viewOrientation); 
+    setUniform(mRenderer.mEquirectangularProgram, "u_camera", viewOrientation); 
     setUniform(mRenderer.mModelProgram, "u_camera", mCameraSystem.getViewTransform()); 
 }
 
@@ -321,6 +346,7 @@ void SceneIblProto::setView()
 void SceneIblProto::setProjection()
 {
     setUniform(mRenderer.mCubemapProgram, "u_projection", mCameraSystem.getCubemapProjectionTransform(mAppInterface)); 
+    setUniform(mRenderer.mEquirectangularProgram, "u_projection", mCameraSystem.getCubemapProjectionTransform(mAppInterface)); 
     setUniform(mRenderer.mModelProgram, "u_projection", mCameraSystem.getProjectionTransform(mAppInterface)); 
 }
 
@@ -331,8 +357,46 @@ void SceneIblProto::showSceneControls()
     mCameraSystem.appendCameraControls();
     ImGui::End();
 
+    mRenderer.showRendererOptions();
 }
 
+
+void IblRenderer::showRendererOptions()
+{
+    ImGui::Begin("Rendering options");
+    {
+
+        ImGui::Checkbox("Show irradiance map", &mShowIrradiance);
+
+        ImGui::Checkbox("Show object", &mShowObject);
+
+        if (ImGui::BeginCombo("Color output", to_string(mColorOutput).c_str()))
+        {
+            for (int colorId = 0; colorId < static_cast<int>(DebugColor::_End); ++colorId)
+            {
+                DebugColor output = static_cast<DebugColor>(colorId);
+                const bool isSelected = (mColorOutput == output);
+                if (ImGui::Selectable(to_string(output).c_str(), isSelected))
+                {
+                    mColorOutput = output;
+                }
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::SliderFloat("Metallic", &mMetallic, 0.f, 1.0f, "%.3f");
+        ImGui::SliderFloat("Roughness", &mRoughness, 0.f, 1.0f, "%.3f");
+        ImGui::SliderFloat("Ambient factor", &mAmbientFactor, 0.f, 1.0f, "%.3f");
+
+    }
+    ImGui::End();
+}
 
 } // namespace gltfviewer
 } // namespace ad

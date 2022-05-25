@@ -2,6 +2,7 @@
 
 
 #include "Camera.h"
+#include "GltfRendering.h"
 #include "ImguiUi.h"
 #include "Sphere.h"
 
@@ -36,14 +37,26 @@ struct IblRenderer
 {
     IblRenderer(const filesystem::path & aEnvironmentMap);
 
+    void update();
+
     void render() const;
+
+    void showRendererOptions();
 
     Cube mCube;
     Sphere mSphere;
     graphics::Program mCubemapProgram;
+    graphics::Program mEquirectangularProgram;
     graphics::Program mModelProgram;
     graphics::Texture mCubemap;
     graphics::Texture mIrradianceCubemap;
+    bool mShowIrradiance{false};
+
+    bool mShowObject{true};
+    GLfloat mMetallic{0.f};
+    GLfloat mRoughness{0.3f};
+    GLfloat mAmbientFactor{0.3f};
+    DebugColor mColorOutput{DebugColor::Default};
 
     static constexpr GLsizei gCubemapTextureUnit{3};
 };
@@ -81,6 +94,8 @@ struct SceneIblProto
         setView();
         // This is a bit greedy, as the projection transform rarely changes compared to the view.
         setProjection();
+
+        mRenderer.update();
     }
 
     void render() const;
