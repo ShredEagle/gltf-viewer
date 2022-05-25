@@ -124,7 +124,9 @@ inline const GLchar* gConvolutionFragmentShader = R"#(
         float nrSamples = 0.0;
         for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
         {
-            for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+            // It becomes much more flattering if we do not integrate the whole hemisphere
+            //for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+            for(float theta = 0.0; theta < 0.3 * PI; theta += sampleDelta)
             {
                 // spherical to cartesian (in tangent space)
                 vec3 tangentSample = vec3(sin(theta) * cos(phi),  sin(theta) * sin(phi), cos(theta));
