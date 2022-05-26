@@ -3,6 +3,7 @@
 #include "ShadersIblProto.h"
 
 #include <graphics/CameraUtilities.h>
+#include <graphics/detail/UnitQuad.h>
 
 #include <renderer/Framebuffer.h>
 #include <renderer/GL_Loader.h>
@@ -16,8 +17,8 @@
 namespace ad {
 namespace gltfviewer {
 
-
 namespace {
+
     GLsizei countCompleteMipmaps(math::Size<2, int> aResolution)
     {
         return std::floor(
@@ -325,6 +326,47 @@ graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquire
 }
 
 
+graphics::Texture prepareBrdfLut()
+{
+    constexpr math::Size<2, int> gSize{512, 512};
+
+    graphics::FrameBuffer framebuffer;
+    bind(framebuffer);
+
+    graphics::Texture lut{GL_TEXTURE_2D};
+    allocateStorage(lut, GL_RG16F, gSize);
+
+    bind(lut);
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    auto scopedViewport = 
+        graphics::scopeViewport({{0, 0}, {gSize.width(), gSize.height()}});
+
+    auto program = graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gQuadVertexShader},
+        {GL_FRAGMENT_SHADER, gBrdfLutFragmentShader.c_str()},
+    });
+    bind(program);
+
+    glFramebufferTexture2D(
+        GL_DRAW_FRAMEBUFFER, 
+        GL_COLOR_ATTACHMENT0, 
+        GL_TEXTURE_2D,
+        lut,
+        0);
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    static const Quad gQuad;
+    gQuad.draw();
+
+    return lut;
+}
+
 } // anonymous namespace
 
 
@@ -348,6 +390,18 @@ void Cube::draw() const
 }
 
 
+Quad::Quad() :
+    mVertexSpecification{graphics::detail::make_UnitQuad()}
+{}
+
+
+void Quad::draw() const
+{
+    graphics::bind_guard boundVao{mVertexSpecification};
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+
 IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     mCubemapProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
@@ -361,15 +415,22 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
         {GL_VERTEX_SHADER,   gIblVertexShader},
         {GL_FRAGMENT_SHADER, gIblPbrFragmentShader.c_str()},
     })},
+    mTexture2DProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gQuadVertexShader},
+        {GL_FRAGMENT_SHADER, gTexture2DFragmentShader},
+    })},
     mCubemap{loadCubemap(aEnvironmentMap)},
     mIrradianceCubemap{prepareIrradiance(mCubemap, mCube)},
-    mPrefilteredCubemap{prefilterEnvironment(mCubemap, mCube)}
+    mPrefilteredCubemap{prefilterEnvironment(mCubemap, mCube)},
+    mBrdfLut{prepareBrdfLut()}
 {
     setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
     setUniformInt(mEquirectangularProgram, "u_equirectangularMap", gCubemapTextureUnit);
 
     setUniform(mModelProgram, "u_baseColorFactor", math::Vec<4, GLfloat>{1.f, 1.f, 1.f, 1.f});
     setUniformInt(mModelProgram, "u_irrandianceMap", gCubemapTextureUnit);
+
+    setUniformInt(mTexture2DProgram, "u_texture", gCubemapTextureUnit);
 }
 
 
@@ -377,35 +438,45 @@ void IblRenderer::render() const
 {
     glActiveTexture(GL_TEXTURE0 + gCubemapTextureUnit);
    
-    // Render skybox
+    if (mShowBrdfLut)
     {
-        switch(mEnvMap)
+        static const Quad gQuad;
+        bind(mBrdfLut);
+        bind(mTexture2DProgram);
+        gQuad.draw();
+    }
+    else
+    {
+        // Render skybox
         {
-        case Environment::Radiance:
-            bind(mCubemap);
-            bind(mEquirectangularProgram);
-            break;
-        case Environment::Irradiance:
-            bind(mIrradianceCubemap);
-            bind(mCubemapProgram);
-            break;
-        case Environment::Prefiltered:
-            bind(mPrefilteredCubemap);
-            bind(mCubemapProgram);
-            break;
+            switch(mEnvMap)
+            {
+            case Environment::Radiance:
+                bind(mCubemap);
+                bind(mEquirectangularProgram);
+                break;
+            case Environment::Irradiance:
+                bind(mIrradianceCubemap);
+                bind(mCubemapProgram);
+                break;
+            case Environment::Prefiltered:
+                bind(mPrefilteredCubemap);
+                bind(mCubemapProgram);
+                break;
+            }
+
+            auto depthMaskGuard = graphics::scopeDepthMask(false);
+            mCube.draw();
         }
 
-        auto depthMaskGuard = graphics::scopeDepthMask(false);
-        mCube.draw();
-    }
+        // Render model
+        if(mShowObject)
+        {
+            graphics::bind_guard boundCubemap{mIrradianceCubemap};
+            graphics::bind_guard boundProgram{mModelProgram};
 
-    // Render model
-    if(mShowObject)
-    {
-        graphics::bind_guard boundCubemap{mIrradianceCubemap};
-        graphics::bind_guard boundProgram{mModelProgram};
-
-        mSphere.draw();
+            mSphere.draw();
+        }
     }
 }
 
@@ -461,6 +532,7 @@ void IblRenderer::showRendererOptions()
 {
     ImGui::Begin("Rendering options");
     {
+        ImGui::Checkbox("Show BRDF LUT", &mShowBrdfLut);
 
         if (ImGui::BeginCombo("Environment map", to_string(mEnvMap).c_str()))
         {

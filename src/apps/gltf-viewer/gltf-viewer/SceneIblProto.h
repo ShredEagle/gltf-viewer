@@ -33,6 +33,18 @@ struct Cube
 };
 
 
+struct Quad
+{
+    Quad();
+
+    void draw() const;
+
+    graphics::VertexSpecification mVertexSpecification;
+};
+
+
+
+
 struct IblRenderer
 {
     enum class Environment
@@ -58,10 +70,13 @@ struct IblRenderer
     graphics::Program mCubemapProgram;
     graphics::Program mEquirectangularProgram;
     graphics::Program mModelProgram;
+    graphics::Program mTexture2DProgram;
     graphics::Texture mCubemap;
     graphics::Texture mIrradianceCubemap;
     graphics::Texture mPrefilteredCubemap;
+    graphics::Texture mBrdfLut;
 
+    bool mShowBrdfLut{false};
     Environment mEnvMap{Environment::Radiance};
     int mPrefilteredLod{-1};
 
