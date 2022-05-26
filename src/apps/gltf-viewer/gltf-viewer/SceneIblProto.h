@@ -35,6 +35,16 @@ struct Cube
 
 struct IblRenderer
 {
+    enum class Environment
+    {
+        Radiance,
+        Irradiance,
+        Prefiltered,
+
+        // Keep last
+        _End//
+    };
+
     IblRenderer(const filesystem::path & aEnvironmentMap);
 
     void update();
@@ -50,7 +60,10 @@ struct IblRenderer
     graphics::Program mModelProgram;
     graphics::Texture mCubemap;
     graphics::Texture mIrradianceCubemap;
-    bool mShowIrradiance{false};
+    graphics::Texture mPrefilteredCubemap;
+
+    Environment mEnvMap{Environment::Radiance};
+    int mPrefilteredLod{-1};
 
     bool mShowObject{true};
     GLfloat mMetallic{0.f};
@@ -60,6 +73,21 @@ struct IblRenderer
 
     static constexpr GLsizei gCubemapTextureUnit{3};
 };
+
+
+inline std::string to_string(IblRenderer::Environment aEnvironment)
+{
+    switch(aEnvironment)
+    {
+    case IblRenderer::Environment::Radiance:
+        return "Radiance";
+    case IblRenderer::Environment::Irradiance:
+        return "Irradiance";
+    case IblRenderer::Environment::Prefiltered:
+        return "Prefiltered";
+    }
+}
+
 
 struct SceneIblProto
 {

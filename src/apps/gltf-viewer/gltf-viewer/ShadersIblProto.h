@@ -49,10 +49,19 @@ inline const GLchar* gIblCubemapFragmentShader = R"#(
     out vec4 out_color;
 
     uniform samplerCube u_cubemap;
+    uniform int u_explicitLod;
 
     void main(void)
     {
-        out_color = texture(u_cubemap, ex_position_local);
+        if(u_explicitLod >= 0)
+        {
+            out_color = textureLod(u_cubemap, ex_position_local, u_explicitLod);
+        }
+        else
+        {
+            out_color = texture(u_cubemap, ex_position_local);
+        }
+
 
         // HDR tonemapping
         out_color.rgb = out_color.rgb / (out_color.rgb + vec3(1.0));
@@ -90,7 +99,7 @@ inline const GLchar* gIblEquirectangularFragmentShader = R"#(
 )#";
 
 
-inline const GLchar* gConvolutionFragmentShader = R"#(
+inline const GLchar* gIrradianceFragmentShader = R"#(
     #version 400
 
     const float PI = 3.14159265359;
@@ -148,6 +157,103 @@ inline const GLchar* gConvolutionFragmentShader = R"#(
         irradiance = PI * irradiance * (1.0 / float(nrSamples));
 
         out_color = vec4(irradiance, 1.0);
+    }
+)#";
+
+
+const std::string common = R"#(
+    const float PI = 3.14159265359;
+
+    float RadicalInverse_VdC(uint bits) 
+    {
+        bits = (bits << 16u) | (bits >> 16u);
+        bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+        bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+        bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+        bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+        return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+    }
+
+    vec2 Hammersley(uint i, uint N)
+    {
+        return vec2(float(i)/float(N), RadicalInverse_VdC(i));
+    }  
+
+    vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
+    {
+        float a = roughness*roughness;
+        
+        float phi = 2.0 * PI * Xi.x;
+        float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));
+        float sinTheta = sqrt(1.0 - cosTheta*cosTheta);
+        
+        // from spherical coordinates to cartesian coordinates
+        vec3 H;
+        H.x = cos(phi) * sinTheta;
+        H.y = sin(phi) * sinTheta;
+        H.z = cosTheta;
+        
+        // from tangent-space vector to world-space sample vector
+        vec3 up        = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+        vec3 tangent   = normalize(cross(up, N));
+        vec3 bitangent = cross(N, tangent);
+        
+        vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
+        return normalize(sampleVec);
+    }  
+
+    const vec2 invAtan = vec2(0.1591, 0.3183);
+    vec2 sampleSphericalMap(vec3 v)
+    {
+        vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+        uv *= invAtan;
+        uv += 0.5;
+        return uv;
+    }
+)#";
+
+const std::string gPrefilterFragmentShader = R"#(
+    #version 400
+
+)#" + common + R"#(
+
+    in vec3 ex_position_local;
+
+    out vec4 out_color;
+
+    uniform float u_roughness;
+    uniform sampler2D u_equirectangularMap;
+
+
+    const uint SAMPLE_COUNT = 1024u;
+
+    void main(void)
+    {
+        vec3 N = normalize(ex_position_local);    
+        // TODO: understand those assignments
+        vec3 R = N;
+        vec3 V = R;
+
+        float totalWeight = 0.0;   
+        vec3 prefilteredColor = vec3(0.0);     
+        for(uint i = 0u; i < SAMPLE_COUNT; ++i)
+        {
+            vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+            vec3 H  = ImportanceSampleGGX(Xi, N, u_roughness);
+            // TODO: understand why this is the light vector?
+            vec3 L  = normalize(2.0 * dot(V, H) * H - V);
+
+            float NdotL = max(dot(N, L), 0.0);
+            if(NdotL > 0.0)
+            {
+                vec2 uv = sampleSphericalMap(L);
+                prefilteredColor += texture(u_equirectangularMap, uv).rgb * NdotL;
+                totalWeight      += NdotL;
+            }
+        }
+        prefilteredColor = prefilteredColor / totalWeight;
+
+        out_color = vec4(prefilteredColor, 1.0);
     }
 )#";
 

@@ -10,12 +10,33 @@
 
 #include <math/Transformations.h>
 
+#include <algorithm>
+
 
 namespace ad {
 namespace gltfviewer {
 
 
 namespace {
+    GLsizei countCompleteMipmaps(math::Size<2, int> aResolution)
+    {
+        return std::floor(
+            std::log2(
+                std::max(aResolution.width(), aResolution.height())
+        )) + 1;
+    }
+
+    constexpr math::Size<2, int> gPrefilterSize{128, 128};
+    const GLsizei gPrefilterLevels = countCompleteMipmaps(gPrefilterSize);
+
+
+    math::Size<2, GLsizei> getMipmapSize(math::Size<2, int> aFullResolution, unsigned int aLevel)
+    {
+        return {
+            std::max(1, aFullResolution.width() / (int)std::pow(2, aLevel)),
+            std::max(1, aFullResolution.height() / (int)std::pow(2, aLevel)),
+        };
+    }
 
     struct Vertex
     {
@@ -181,7 +202,7 @@ graphics::Texture loadCubemap(const filesystem::path & aPath)
 
 graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect, const Cube & aCube)
 {
-    constexpr math::Size<2, int> gIrradianceSize{64, 64};
+    constexpr math::Size<2, int> gIrradianceSize{32, 32};
     constexpr GLint gTextureUnit = 0;
 
     graphics::FrameBuffer framebuffer;
@@ -203,7 +224,7 @@ graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect,
 
     auto convolution = graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gConvolutionFragmentShader},
+        {GL_FRAGMENT_SHADER, gIrradianceFragmentShader},
     });
     bind(convolution);
 
@@ -237,6 +258,71 @@ graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect,
     return cubemap;
 }
 
+
+graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquirect, const Cube & aCube)
+{
+    constexpr GLint gTextureUnit = 0;
+    assert(gPrefilterLevels > 1);
+
+    graphics::FrameBuffer framebuffer;
+    bind(framebuffer);
+
+    graphics::Texture cubemap{GL_TEXTURE_CUBE_MAP};
+    allocateStorage(cubemap, GL_RGB16F, gPrefilterSize, gPrefilterLevels);
+
+    bind(cubemap);
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    auto scopedViewport = 
+        graphics::scopeViewport({{0, 0}, {gPrefilterSize.width(), gPrefilterSize.height()}});
+
+    auto convolution = graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gIblVertexShader},
+        {GL_FRAGMENT_SHADER, gPrefilterFragmentShader.c_str()},
+    });
+    bind(convolution);
+
+    glActiveTexture(GL_TEXTURE0 + gTextureUnit);
+    bind(aRadianceEquirect);
+    setUniformInt(convolution, "u_equirectangularMap", gTextureUnit);
+
+    setUniform(convolution, "u_projection",
+        math::trans3d::scale(1.f, 1.f, -1.f) // OpenGL clipping space is left handed.
+        * math::trans3d::orthographicProjection(math::Box<GLfloat>{
+            {-1.f, -1.f, 0.f}, 
+            {2.f, 2.f, 2.f}
+        })
+    ); 
+
+    for(int mip = 0; mip != gPrefilterLevels; ++mip)
+    {
+        math::Size<2, GLsizei> levelSize = getMipmapSize(gPrefilterSize, mip);
+        glViewport(0, 0, levelSize.width(), levelSize.height());
+
+        GLfloat roughness = (GLfloat)mip / (gPrefilterLevels - 1);
+        setUniformFloat(convolution, "u_roughness", roughness);
+        for(GLint face = 0; face != 6; ++face)
+        {
+            glFramebufferTexture2D(
+                GL_DRAW_FRAMEBUFFER, 
+                GL_COLOR_ATTACHMENT0, 
+                GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
+                cubemap,
+                mip);
+
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            setUniform(convolution, "u_camera", gCaptureView[face]); 
+            aCube.draw();
+        }
+    }
+    return cubemap;
+}
 
 
 } // anonymous namespace
@@ -276,7 +362,8 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
         {GL_FRAGMENT_SHADER, gIblPbrFragmentShader.c_str()},
     })},
     mCubemap{loadCubemap(aEnvironmentMap)},
-    mIrradianceCubemap{prepareIrradiance(mCubemap, mCube)}
+    mIrradianceCubemap{prepareIrradiance(mCubemap, mCube)},
+    mPrefilteredCubemap{prefilterEnvironment(mCubemap, mCube)}
 {
     setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
     setUniformInt(mEquirectangularProgram, "u_equirectangularMap", gCubemapTextureUnit);
@@ -292,15 +379,20 @@ void IblRenderer::render() const
    
     // Render skybox
     {
-        if (mShowIrradiance)
+        switch(mEnvMap)
         {
-            bind(mIrradianceCubemap);
-            bind(mCubemapProgram);
-        }
-        else
-        {
+        case Environment::Radiance:
             bind(mCubemap);
             bind(mEquirectangularProgram);
+            break;
+        case Environment::Irradiance:
+            bind(mIrradianceCubemap);
+            bind(mCubemapProgram);
+            break;
+        case Environment::Prefiltered:
+            bind(mPrefilteredCubemap);
+            bind(mCubemapProgram);
+            break;
         }
 
         auto depthMaskGuard = graphics::scopeDepthMask(false);
@@ -320,6 +412,8 @@ void IblRenderer::render() const
 
 void IblRenderer::update()
 {
+    setUniformInt(mCubemapProgram, "u_explicitLod", mPrefilteredLod);
+
     setUniformFloat(mModelProgram, "u_metallicFactor", mMetallic);
     setUniformFloat(mModelProgram, "u_roughnessFactor", mRoughness);
     setUniformFloat(mModelProgram, "u_ambientFactor", mAmbientFactor);
@@ -330,6 +424,8 @@ void IblRenderer::update()
 void SceneIblProto::render() const
 {
     glEnable(GL_DEPTH_TEST);  
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);  
+
     mRenderer.render(); 
 }
 
@@ -366,7 +462,38 @@ void IblRenderer::showRendererOptions()
     ImGui::Begin("Rendering options");
     {
 
-        ImGui::Checkbox("Show irradiance map", &mShowIrradiance);
+        if (ImGui::BeginCombo("Environment map", to_string(mEnvMap).c_str()))
+        {
+            for (int id = 0; id < static_cast<int>(Environment::_End); ++id)
+            {
+                Environment entry = static_cast<Environment>(id);
+                const bool isSelected = (mEnvMap == entry);
+                if (ImGui::Selectable(to_string(entry).c_str(), isSelected))
+                {
+                    mEnvMap = entry;
+                }
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        if(mEnvMap == Environment::Prefiltered)
+        {
+            if(mPrefilteredLod == -1)
+            {
+                mPrefilteredLod = 0;
+            }
+            ImGui::SliderInt("Prefiltered level", &mPrefilteredLod, 0, gPrefilterLevels - 1);
+        }
+        else
+        {
+            mPrefilteredLod = -1;
+        }
 
         ImGui::Checkbox("Show object", &mShowObject);
 
