@@ -428,7 +428,10 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     setUniformInt(mEquirectangularProgram, "u_equirectangularMap", gCubemapTextureUnit);
 
     setUniform(mModelProgram, "u_baseColorFactor", math::Vec<4, GLfloat>{1.f, 1.f, 1.f, 1.f});
-    setUniformInt(mModelProgram, "u_irrandianceMap", gCubemapTextureUnit);
+    setUniformFloat(mModelProgram, "u_maxReflectionLod", gPrefilterLevels);
+    setUniformInt(mModelProgram, "u_irradianceMap", gCubemapTextureUnit);
+    setUniformInt(mModelProgram, "u_prefilterMap", gPrefilterMapTextureUnit);
+    setUniformInt(mModelProgram, "u_brdfLut", gBrdfLutTextureUnit);
 
     setUniformInt(mTexture2DProgram, "u_texture", gCubemapTextureUnit);
 }
@@ -472,7 +475,13 @@ void IblRenderer::render() const
         // Render model
         if(mShowObject)
         {
+            glActiveTexture(GL_TEXTURE0 + gCubemapTextureUnit);
             graphics::bind_guard boundCubemap{mIrradianceCubemap};
+            glActiveTexture(GL_TEXTURE0 + gPrefilterMapTextureUnit);
+            bind(mPrefilteredCubemap);
+            glActiveTexture(GL_TEXTURE0 + gBrdfLutTextureUnit);
+            bind(mBrdfLut);
+
             graphics::bind_guard boundProgram{mModelProgram};
 
             mSphere.draw();

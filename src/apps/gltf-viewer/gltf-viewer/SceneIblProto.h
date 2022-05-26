@@ -87,6 +87,8 @@ struct IblRenderer
     DebugColor mColorOutput{DebugColor::Default};
 
     static constexpr GLsizei gCubemapTextureUnit{3};
+    static constexpr GLsizei gPrefilterMapTextureUnit{4};
+    static constexpr GLsizei gBrdfLutTextureUnit{5};
 };
 
 

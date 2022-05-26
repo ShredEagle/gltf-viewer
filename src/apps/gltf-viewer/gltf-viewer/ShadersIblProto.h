@@ -390,6 +390,11 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }  
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a      = roughness*roughness;
@@ -437,9 +442,12 @@ in vec4 ex_color;
 uniform vec4 u_baseColorFactor;
 uniform float u_metallicFactor;
 uniform float u_roughnessFactor;
+uniform float u_maxReflectionLod;
 
-uniform float u_ambientFactor;
+uniform float       u_ambientFactor;
 uniform samplerCube u_irradianceMap;
+uniform samplerCube u_prefilterMap;
+uniform sampler2D   u_brdfLut;
 
 uniform int u_debugOutput;
 
@@ -494,21 +502,35 @@ void main()
 
     L0 += (diffuse + specular) * intensity * NdotL; 
 
-    //
-    // Ambient IBL
-    //
+
+    vec3 ambient = vec3(0.);
     float VdotN = clampedDot(v, n);
     {
-        vec3 kS_Ibl = fresnelSchlick(VdotN, F0);
+        vec3 F = fresnelSchlickRoughness(VdotN, F0, roughness);
+
+        //
+        // Diffuse IBL
+        //
+        vec3 kS_Ibl = F;
         vec3 kD_Ibl = 1.0 - kS_Ibl;
         kD_Ibl *= 1.0 - metallic;	  
         vec3 irradiance = texture(u_irradianceMap, ex_normal_world.xyz).rgb;
         vec3 diffuse      = irradiance * materialColor.rgb;
-        vec3 ambient = kD_Ibl * diffuse * u_ambientFactor;
-        
-        L0 += ambient;
+        ambient += kD_Ibl * diffuse;
+
+        //
+        // Specular IBL
+        //
+        vec3 r = reflect(-v, ex_normal_world.xyz);
+        vec3 prefilteredColor = textureLod(u_prefilterMap, r, roughness * u_maxReflectionLod).rgb;
+
+        vec2 brdf = texture(u_brdfLut, vec2(VdotN, roughness)).rg;
+        vec3 specular = prefilteredColor * (F * brdf.r + brdf.g);
+        // Not multiplied by kS, because there is already F (==kS) in computing specular.
+        ambient += specular;
     }
 
+    L0 += ambient * u_ambientFactor;
     vec3 color = L0;
 
     // HDR tonemapping
