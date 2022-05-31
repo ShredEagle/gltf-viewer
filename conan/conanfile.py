@@ -30,9 +30,9 @@ class GltfViewerConan(ConanFile):
         ("imgui/1.87"),
         ("zlib/1.2.12"),
 
-        ("graphics/335d54bdbb@adnn/develop"),
-        ("handy/bfed056640@adnn/develop"),
-        ("math/4234fd5aaf@adnn/develop"),
+        ("graphics/41e82d1b2b@adnn/develop"),
+        ("handy/4ecfa5b125@adnn/develop"),
+        ("math/6d9dbebec4@adnn/develop"),
     )
 
     # Note: It seems conventionnal to add CMake build requirement
