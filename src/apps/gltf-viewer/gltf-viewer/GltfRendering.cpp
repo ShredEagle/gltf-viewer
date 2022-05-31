@@ -32,8 +32,10 @@ inline std::string to_string(DebugColor aColor)
         return "Roughness";
     case DebugColor::Albedo:
         return "Albedo";
-    case DebugColor::SpecularRatio:
-        return "SpecularRatio";
+    case DebugColor::FresnelLight:
+        return "FresnelLight";
+    case DebugColor::FresnelIbl:
+        return "FresnelIbl";
     case DebugColor::Normal:
         return "Normal";
     case DebugColor::View:
@@ -48,10 +50,18 @@ inline std::string to_string(DebugColor aColor)
         return "NormalDistributionFunction";
     case DebugColor::GeometryFunction:
         return "GeometryFunction";
-    case DebugColor::Diffuse:
-        return "Diffuse";
-    case DebugColor::Specular:
-        return "Specular";
+    case DebugColor::DiffuseLight:
+        return "DiffuseLight";
+    case DebugColor::SpecularLight:
+        return "SpecularLight";
+    case DebugColor::DiffuseIbl:
+        return "DiffuseIbl";
+    case DebugColor::SpecularIbl:
+        return "SpecularIbl";
+    case DebugColor::Direct:
+        return "Direct";
+    case DebugColor::Ambient:
+        return "Ambient";
     }
 }
 

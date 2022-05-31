@@ -25,6 +25,9 @@ struct CameraInstance
     math::AffineMatrix<4, float> getViewTransform() const
     { return orientation.inverse(); }
 
+    math::Position<3, GLfloat> getWorldPosition() const
+    { return (math::Position<4, GLfloat>{0.f, 0.f, 0.f, 1.f} * orientation).xyz(); }
+
     math::AffineMatrix<4, float> orientation;
     arte::Const_Owned<arte::gltf::Camera> gltfCamera;
 };
@@ -44,6 +47,8 @@ public:
     UserCamera(std::shared_ptr<graphics::AppInterface> aAppInterface) :
         mAppInterface{std::move(aAppInterface)}
     {}
+
+    math::Position<3, GLfloat> getWorldPosition() const;
 
     /// \return View matrix.
     math::AffineMatrix<4, GLfloat> getViewTransform();
@@ -104,6 +109,8 @@ public:
     CameraSystem(std::shared_ptr<graphics::AppInterface> aAppInterface);
 
     void setViewedBox(math::Box<GLfloat> aSceneBoundingBox);
+
+    math::Position<3, GLfloat> getWorldPosition() const;
 
     math::AffineMatrix<4, GLfloat> getViewTransform();
     math::Matrix<4, 4, float> getProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);

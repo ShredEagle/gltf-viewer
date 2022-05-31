@@ -67,13 +67,18 @@ math::Matrix<4, 4, float> getProjection(arte::Const_Owned<arte::gltf::Camera> aC
 //
 // UserCamera
 //
+
+
+math::Position<3, GLfloat> UserCamera::getWorldPosition() const
+{
+    return mPolarOrigin + mPosition.toCartesian().as<math::Vec>();
+}
+
+
 math::AffineMatrix<4, GLfloat> UserCamera::getViewTransform()
 {
-    const math::Position<3, GLfloat> cameraCartesian = mPosition.toCartesian();
-    ADLOG(gDrawLogger, trace)("Camera position {}.", cameraCartesian);
-
-    math::Vec<3, GLfloat> gazeDirection = gGazePoint - cameraCartesian;
-    return graphics::getCameraTransform(mPolarOrigin + cameraCartesian.as<math::Vec>(),
+    math::Vec<3, GLfloat> gazeDirection = gGazePoint - mPosition.toCartesian();
+    return graphics::getCameraTransform(getWorldPosition(),
                                         gazeDirection,
                                         mPosition.getUpTangent());
 }
@@ -239,6 +244,19 @@ void CameraSystem::setViewedBox(math::Box<GLfloat> aSceneBoundingBox)
          ("Centering camera on {}, scene bounding box is {}.",
           aSceneBoundingBox.center(), aSceneBoundingBox);
     mCustomCamera.setViewedBox(aSceneBoundingBox);
+}
+
+
+math::Position<3, GLfloat> CameraSystem::getWorldPosition() const
+{
+    if (!mSelectedCamera)
+    {
+        return mCustomCamera.getWorldPosition();
+    }
+    else
+    {
+        return mCameraInstances[*mSelectedCamera].getWorldPosition();
+    }
 }
 
 

@@ -516,6 +516,7 @@ void SceneIblProto::setView()
     setUniform(mRenderer.mCubemapProgram, "u_camera", viewOrientation); 
     setUniform(mRenderer.mEquirectangularProgram, "u_camera", viewOrientation); 
     setUniform(mRenderer.mModelProgram, "u_camera", mCameraSystem.getViewTransform()); 
+    setUniform(mRenderer.mModelProgram, "u_cameraPosition_world", mCameraSystem.getWorldPosition()); 
 }
 
 
