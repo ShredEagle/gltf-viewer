@@ -7,6 +7,7 @@
 #include <handy/Base64.h>
 
 #include <span>
+#include <fstream>
 #include <strstream>
 
 #include <renderer/GL_Loader.h>
