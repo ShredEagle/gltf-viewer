@@ -84,6 +84,9 @@ struct IblRenderer
     GLfloat mMetallic{0.f};
     GLfloat mRoughness{0.3f};
     GLfloat mAmbientFactor{0.3f};
+    math::hdr::Rgb<GLfloat> mLightColor{1.f, 1.f, 1.f};
+    bool mHdrTonemapping{true};
+    bool mGammaCorrect{true};
     DebugColor mColorOutput{DebugColor::Default};
 
     static constexpr GLsizei gCubemapTextureUnit{3};

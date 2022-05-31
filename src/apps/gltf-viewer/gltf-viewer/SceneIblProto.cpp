@@ -494,9 +494,14 @@ void IblRenderer::update()
 {
     setUniformInt(mCubemapProgram, "u_explicitLod", mPrefilteredLod);
 
+    setUniform(mModelProgram, "u_lightColor", mLightColor);
+
     setUniformFloat(mModelProgram, "u_metallicFactor", mMetallic);
     setUniformFloat(mModelProgram, "u_roughnessFactor", mRoughness);
     setUniformFloat(mModelProgram, "u_ambientFactor", mAmbientFactor);
+
+    setUniformInt(mModelProgram, "u_hdrTonemapping", static_cast<int>(mHdrTonemapping)); 
+    setUniformInt(mModelProgram, "u_gammaCorrect", static_cast<int>(mGammaCorrect)); 
     setUniformInt(mModelProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
 }
 
@@ -542,6 +547,8 @@ void IblRenderer::showRendererOptions()
 {
     ImGui::Begin("Rendering options");
     {
+        ImGui::ColorPicker3("Light intensity", mLightColor.data());
+
         ImGui::Checkbox("Show BRDF LUT", &mShowBrdfLut);
 
         if (ImGui::BeginCombo("Environment map", to_string(mEnvMap).c_str()))
@@ -598,6 +605,9 @@ void IblRenderer::showRendererOptions()
             }
             ImGui::EndCombo();
         }
+
+        ImGui::Checkbox("HDR Tonemapping", &mHdrTonemapping);
+        ImGui::Checkbox("GammaCorrect", &mGammaCorrect);
 
         ImGui::SliderFloat("Metallic", &mMetallic, 0.f, 1.0f, "%.3f");
         ImGui::SliderFloat("Roughness", &mRoughness, 0.f, 1.0f, "%.3f");

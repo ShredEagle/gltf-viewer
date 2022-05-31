@@ -442,6 +442,7 @@ in vec4 ex_normal_world;
 in vec4 ex_normal_view;
 in vec4 ex_color;
 
+uniform vec3 u_lightColor;
 uniform vec4 u_baseColorFactor;
 uniform float u_metallicFactor;
 uniform float u_roughnessFactor;
@@ -454,6 +455,8 @@ uniform sampler2D   u_brdfLut;
 
 uniform vec3 u_cameraPosition_world;
 
+uniform bool u_hdrTonemapping;
+uniform bool u_gammaCorrect;
 uniform int u_debugOutput;
 
 out vec4 out_color;
@@ -482,7 +485,6 @@ void main()
     //
     // Lights
     //
-    vec3 lightColor = vec3(3.);
     //vec3 l = normalize(vec3(0., 0., 1.));      // Directional light, in view space
     vec3 l = normalize(u_cameraPosition_world);  // Directional light, in world space
     vec3 h = normalize(v + l);
@@ -493,7 +495,7 @@ void main()
 
     // TODO implement light attenuation
     float attenuation = 1.;
-    vec3 intensity = lightColor * attenuation;
+    vec3 intensity = u_lightColor * attenuation;
 
     vec3 F_Light = fresnelSchlick(VdotH, F0);
 
@@ -507,11 +509,13 @@ void main()
     float G   = GeometrySmith(n, v, l, roughness);
     vec3 numerator    = NDF * G * F_Light;
     float denominator = 4.0 * NdotV * NdotL  + 0.0001;
-    vec3 specular     = numerator / denominator;  
+    vec3 specular     = (numerator / denominator) * intensity * NdotL;  
 
-    vec3 diffuse = kD * materialColor.rgb / PI;
+    vec3 diffuse = (kD * materialColor.rgb / PI) * intensity * NdotL;
 
-    L0 += (diffuse + specular) * intensity * NdotL; 
+    // Note: Initially, we multiplied by intensity * NdotL here,
+    // Yet multiplying early allows better debug color outputs.
+    L0 += diffuse + specular;
 
 
     vec3 diffuse_Ibl  = vec3(0.);
@@ -544,9 +548,15 @@ void main()
     vec3 color = L0 + ambient * u_ambientFactor;
 
     // HDR tonemapping
-    color = color / (color + vec3(1.0));
+    if(u_hdrTonemapping)
+    {
+        color = color / (color + vec3(1.0));
+    }
     // gamma correct
-    color = pow(color, vec3(1.0/2.2));
+    if(u_gammaCorrect)
+    {
+        color = pow(color, vec3(1.0/2.2));
+    }
 
     switch(u_debugOutput)
     {
