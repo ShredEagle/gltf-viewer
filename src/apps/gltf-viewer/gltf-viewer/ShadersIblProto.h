@@ -72,7 +72,9 @@ inline const GLchar* gIblVertexShader = R"#(
             normalize(transpose(inverse(mat3(modelViewTransform))) * ve_normal),
             0.);
 
-        ex_color = vec4(.5, .5, .5, 1.);
+        //ex_color = vec4(.5, .5, .5, 1.);
+        // Gold, see: https://learnopengl.com/PBR/Theory
+        ex_color = vec4(1.0, 0.71, 0.29, 1.0);
 
         gl_Position = u_projection * ex_position_view;
     }

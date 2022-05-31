@@ -31,6 +31,7 @@ namespace {
 
     constexpr math::Size<2, int> gPrefilterSize{128, 128};
     const GLsizei gPrefilterLevels = countCompleteMipmaps(gPrefilterSize);
+    constexpr GLsizei gRemovedLevels = 4;
 
 
     math::Size<2, GLsizei> getMipmapSize(math::Size<2, int> aFullResolution, unsigned int aLevel)
@@ -430,7 +431,7 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     setUniformInt(mEquirectangularProgram, "u_equirectangularMap", gCubemapTextureUnit);
 
     setUniform(mModelProgram, "u_baseColorFactor", math::Vec<4, GLfloat>{1.f, 1.f, 1.f, 1.f});
-    setUniformFloat(mModelProgram, "u_maxReflectionLod", gPrefilterLevels);
+    setUniformFloat(mModelProgram, "u_maxReflectionLod", gPrefilterLevels - gRemovedLevels);
     setUniformInt(mModelProgram, "u_irradianceMap", gCubemapTextureUnit);
     setUniformInt(mModelProgram, "u_prefilterMap", gPrefilterMapTextureUnit);
     setUniformInt(mModelProgram, "u_brdfLut", gBrdfLutTextureUnit);
