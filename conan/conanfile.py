@@ -27,6 +27,7 @@ class GltfViewerConan(ConanFile):
     requires = (
         ("boost/1.77.0"),
         ("imgui/1.87"),
+        ("nativefiledialog/116"),
 
         ("graphics/f4ca9e9d92@adnn/develop"),
         ("math/4234fd5aaf@adnn/develop"),

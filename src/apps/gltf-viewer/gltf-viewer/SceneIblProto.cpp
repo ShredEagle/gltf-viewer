@@ -11,6 +11,8 @@
 
 #include <math/Transformations.h>
 
+#include <nfd.h>
+
 #include <algorithm>
 
 
@@ -551,6 +553,29 @@ void IblRenderer::showRendererOptions()
 
         ImGui::Checkbox("Show BRDF LUT", &mShowBrdfLut);
 
+        if(ImGui::Button("Open HDR environment"))
+        {
+            nfdchar_t *outPath = NULL;
+            nfdresult_t result = NFD_OpenDialog("hdr", NULL, &outPath );
+                
+            if ( result == NFD_OKAY ) 
+            {
+                mCubemap = loadCubemap(outPath);
+                mIrradianceCubemap = prepareIrradiance(mCubemap, mCube);
+                mPrefilteredCubemap = prefilterEnvironment(mCubemap, mCube);
+
+                free(outPath);
+            }
+            else if ( result == NFD_CANCEL ) 
+            {
+                ADLOG(gPrepareLogger, trace)("User cancelled selection.");
+            }
+            else 
+            {
+                ADLOG(gPrepareLogger, error)("File selection error: {}.", NFD_GetError());
+            }
+        }
+
         if (ImGui::BeginCombo("Environment map", to_string(mEnvMap).c_str()))
         {
             for (int id = 0; id < static_cast<int>(Environment::_End); ++id)
@@ -607,7 +632,7 @@ void IblRenderer::showRendererOptions()
         }
 
         ImGui::Checkbox("HDR Tonemapping", &mHdrTonemapping);
-        ImGui::Checkbox("GammaCorrect", &mGammaCorrect);
+        ImGui::Checkbox("Gamma Correct", &mGammaCorrect);
 
         ImGui::SliderFloat("Metallic", &mMetallic, 0.f, 1.0f, "%.3f");
         ImGui::SliderFloat("Roughness", &mRoughness, 0.f, 1.0f, "%.3f");

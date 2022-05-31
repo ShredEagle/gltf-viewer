@@ -68,6 +68,7 @@ find_package(Graphics CONFIG REQUIRED COMPONENTS arte graphics resource)
 
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(imgui REQUIRED)
+find_package(nativefiledialog REQUIRED)
 
 target_link_libraries(${TARGET_NAME}
     PRIVATE
@@ -77,4 +78,5 @@ target_link_libraries(${TARGET_NAME}
 
         Boost::program_options
         imgui::imgui
+        nativefiledialog::nativefiledialog
 )
