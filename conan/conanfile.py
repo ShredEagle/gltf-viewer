@@ -91,11 +91,11 @@ class GltfViewerConan(ConanFile):
     def imports(self):
         # see: https://blog.conan.io/2019/06/26/An-introduction-to-the-Dear-ImGui-library.html
         # the imgui package is designed this way: consumer has to import desired backends.
-        self.copy("imgui_impl_glfw.cpp",         src="./res/bindings", dst="conan_imports/imgui_backends")
-        self.copy("imgui_impl_opengl3.cpp",      src="./res/bindings", dst="conan_imports/imgui_backends")
-        self.copy("imgui_impl_glfw.h",           src="./res/bindings", dst="conan_imports/imgui_backends")
-        self.copy("imgui_impl_opengl3.h",        src="./res/bindings", dst="conan_imports/imgui_backends")
-        self.copy("imgui_impl_opengl3_loader.h", src="./res/bindings", dst="conan_imports/imgui_backends")
+        self.copy("imgui_impl_glfw.cpp",         src="./res/bindings", dst=path.join(self.folders.build, "conan_imports/imgui_backends"))
+        self.copy("imgui_impl_opengl3.cpp",      src="./res/bindings", dst=path.join(self.folders.build, "conan_imports/imgui_backends"))
+        self.copy("imgui_impl_glfw.h",           src="./res/bindings", dst=path.join(self.folders.build, "conan_imports/imgui_backends"))
+        self.copy("imgui_impl_opengl3.h",        src="./res/bindings", dst=path.join(self.folders.build, "conan_imports/imgui_backends"))
+        self.copy("imgui_impl_opengl3_loader.h", src="./res/bindings", dst=path.join(self.folders.build, "conan_imports/imgui_backends"))
 
 
     def build(self):
