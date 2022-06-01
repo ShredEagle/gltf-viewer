@@ -5,7 +5,6 @@ namespace ad {
 namespace gltfviewer {
 
 
-// TODO impl light
 inline const std::string gPbrLearnFragmentShader = R"#(
 #version 400
 
@@ -65,6 +64,8 @@ in vec4 ex_normal_view;
 in vec2 ex_baseColorUv;
 in vec4 ex_color;
 
+uniform vec3 u_lightColor;
+
 uniform vec4 u_baseColorFactor;
 uniform sampler2D u_baseColorTex;
 uniform float u_metallicFactor;
@@ -99,7 +100,8 @@ void main()
     //float alphaRoughness = roughness * roughness;
 
     vec3 lightColor = vec3(3.);
-    vec3 l = normalize(vec3(0., 0., 1.));      // Directional light
+    vec3 l = normalize(vec3(0., 0., 1.));      // Direction from surface point to light, in camera space
+
     vec3 h = normalize(v + l);
 
     float NdotV = clampedDot(n, v);
@@ -108,7 +110,7 @@ void main()
 
     // TODO implement light attenuation
     float attenuation = 1.;
-    vec3 intensity = lightColor * attenuation;
+    vec3 intensity = u_lightColor * 3 * attenuation;
 
     vec3 F = fresnelSchlick(VdotH, F0);
 

@@ -99,11 +99,11 @@ namespace {
 
 IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     mCubemapProgram{graphics::makeLinkedProgram({
-        {GL_VERTEX_SHADER,   gIblVertexShader}, // todo use skybox
+        {GL_VERTEX_SHADER,   gSkyboxVertexShader},
         {GL_FRAGMENT_SHADER, gIblCubemapFragmentShader},
     })},
     mEquirectangularProgram{graphics::makeLinkedProgram({
-        {GL_VERTEX_SHADER,   gIblVertexShader}, // todo use skybox
+        {GL_VERTEX_SHADER,   gSkyboxVertexShader},
         {GL_FRAGMENT_SHADER, gEquirectangularSkyboxFragmentShader},
     })},
     mModelProgram{graphics::makeLinkedProgram({
@@ -213,8 +213,8 @@ void SceneIblProto::render() const
 void SceneIblProto::setView()
 {
     math::AffineMatrix<4, GLfloat> viewOrientation{mCameraSystem.getViewTransform().getLinear()};
-    setUniform(mRenderer.mCubemapProgram, "u_camera", viewOrientation); 
-    setUniform(mRenderer.mEquirectangularProgram, "u_camera", viewOrientation); 
+    setUniform(mRenderer.mCubemapProgram, "u_cameraOrientation", viewOrientation); 
+    setUniform(mRenderer.mEquirectangularProgram, "u_cameraOrientation", viewOrientation); 
     setUniform(mRenderer.mModelProgram, "u_camera", mCameraSystem.getViewTransform()); 
     setUniform(mRenderer.mModelProgram, "u_cameraPosition_world", mCameraSystem.getWorldPosition()); 
 }

@@ -5,7 +5,6 @@ namespace ad {
 namespace gltfviewer {
 
 
-
 inline const GLchar* gTexture2DFragmentShader = R"#(
     #version 400
 
@@ -20,6 +19,7 @@ inline const GLchar* gTexture2DFragmentShader = R"#(
         out_color = vec4(texture(u_texture, ex_uv).rgb, 1.);
     }
 )#";
+
 
 inline const GLchar* gIblVertexShader = R"#(
     #version 400
@@ -87,9 +87,10 @@ inline const GLchar* gIblCubemapFragmentShader = R"#(
             out_color = texture(u_cubemap, ex_position_local);
         }
 
-
         // HDR tonemapping
         out_color.rgb = out_color.rgb / (out_color.rgb + vec3(1.0));
+        // Gamma correct
+        out_color = vec4(pow(out_color.rgb, vec3(1.0/2.2)), out_color.a);
     }
 )#";
 
