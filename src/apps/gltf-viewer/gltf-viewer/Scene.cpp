@@ -2,6 +2,8 @@
 
 #include "Shaders.h"
 
+#include <nfd.h>
+
 
 namespace ad {
 namespace gltfviewer {
@@ -141,9 +143,31 @@ void Scene::showSceneControls()
         }
     }
 
-    cameraSystem.appendCameraControls();
+    ImGui::ColorPicker3("Light color", light.mColor.data());
+
+    if(ImGui::Button("Open HDR environment"))
+    {
+        nfdchar_t *outPath = NULL;
+        nfdresult_t result = NFD_OpenDialog("hdr", NULL, &outPath );
+            
+        if ( result == NFD_OKAY ) 
+        {
+            renderer.loadEnvironment(outPath);
+            free(outPath);
+        }
+        else if ( result == NFD_CANCEL ) 
+        {
+            ADLOG(gPrepareLogger, trace)("User cancelled selection.");
+        }
+        else 
+        {
+            ADLOG(gPrepareLogger, error)("File selection error: {}.", NFD_GetError());
+        }
+    }
 
     ImGui::End();
+
+    cameraSystem.showCameraControls();
 
     renderer.showRendererOptions();
 }

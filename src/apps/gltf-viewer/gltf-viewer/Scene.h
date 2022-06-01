@@ -163,6 +163,12 @@ struct Scene
         setView(cameraSystem.getViewTransform());
         // This is a bit greedy, as the projection transform rarely changes compared to the view.
         setProjection(cameraSystem.getProjectionTransform(appInterface));
+
+        // Update light direction, expected in world space
+        light.mDirection = 
+            (math::Vec<4, GLfloat>{0.f, 0.f, -1.f, 0.f} 
+            * cameraSystem.getViewTransform().inverse()).xyz();
+        renderer.setLight(light);
     }
 
     Animation & currentAnimation()
@@ -322,6 +328,7 @@ struct Scene
     AnimationRepository animations;
     std::optional<std::size_t> activeAnimation;
     JointRepository nodeToJoint;
+    Light light;
     Renderer renderer;
     std::shared_ptr<graphics::AppInterface> appInterface;
     CameraSystem cameraSystem;

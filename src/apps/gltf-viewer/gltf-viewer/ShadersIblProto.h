@@ -6,22 +6,6 @@ namespace gltfviewer {
 
 
 
-inline const GLchar* gQuadVertexShader = R"#(
-    #version 400
-
-    layout(location=0) in vec2 ve_position;
-    layout(location=1) in vec2 ve_uv;
-
-    out vec2 ex_uv;
-
-    void main(void)
-    {
-        ex_uv = ve_uv;
-        gl_Position = vec4(ve_position, 0., 1.);
-    }
-)#";
-
-
 inline const GLchar* gTexture2DFragmentShader = R"#(
     #version 400
 
@@ -80,6 +64,7 @@ inline const GLchar* gIblVertexShader = R"#(
     }
 )#";
 
+
 inline const GLchar* gIblCubemapFragmentShader = R"#(
     #version 400
 
@@ -102,36 +87,6 @@ inline const GLchar* gIblCubemapFragmentShader = R"#(
             out_color = texture(u_cubemap, ex_position_local);
         }
 
-
-        // HDR tonemapping
-        out_color.rgb = out_color.rgb / (out_color.rgb + vec3(1.0));
-    }
-)#";
-
-
-inline const GLchar* gIblEquirectangularFragmentShader = R"#(
-    #version 400
-
-    in vec3 ex_position_local;
-    in vec4 ex_color;
-
-    out vec4 out_color;
-
-    uniform sampler2D u_equirectangularMap;
-
-    const vec2 invAtan = vec2(0.1591, 0.3183);
-    vec2 sampleSphericalMap(vec3 v)
-    {
-        vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
-        uv *= invAtan;
-        uv += 0.5;
-        return uv;
-    }
-
-    void main(void)
-    {
-        vec2 uv = sampleSphericalMap(normalize(ex_position_local));
-        out_color = texture(u_equirectangularMap, uv);
 
         // HDR tonemapping
         out_color.rgb = out_color.rgb / (out_color.rgb + vec3(1.0));
@@ -169,7 +124,7 @@ inline const GLchar* gIrradianceFragmentShader = R"#(
         vec3 right = normalize(cross(up, normal));
         up         = normalize(cross(normal, right));
 
-        float sampleDelta = 0.005;
+        float sampleDelta = 0.004;
         float nrSamples = 0.0;
         for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
         {
@@ -379,7 +334,7 @@ const std::string gBrdfLutFragmentShader = R"#(
 )#";
 
 
-inline const std::string gIblPbrFragmentShader = R"#(
+inline const std::string gIblProtoPbrFragmentShader = R"#(
 #version 400
 
 const float PI = 3.141592653589793;

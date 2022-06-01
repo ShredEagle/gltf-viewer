@@ -116,7 +116,7 @@ public:
     math::Matrix<4, 4, float> getProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);
     math::Matrix<4, 4, float> getCubemapProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);
 
-    void appendCameraControls();
+    void showCameraControls();
 
     void clearGltfCameras()
     { mCameraInstances.clear(); }

@@ -6,6 +6,25 @@ namespace gltfviewer {
 
 
 //
+// Directly forward the position and uv, usefull for screen quad
+//
+inline const GLchar* gQuadVertexShader = R"#(
+    #version 400
+
+    layout(location=0) in vec2 ve_position;
+    layout(location=1) in vec2 ve_uv;
+
+    out vec2 ex_uv;
+
+    void main(void)
+    {
+        ex_uv = ve_uv;
+        gl_Position = vec4(ve_position, 0., 1.);
+    }
+)#";
+
+
+//
 // Phong shading(ambient, diffuse, specular)
 //
 inline const GLchar* gStaticVertexShader = R"#(
@@ -22,13 +41,20 @@ inline const GLchar* gStaticVertexShader = R"#(
     uniform mat4 u_projection;
     uniform vec4 u_vertexColorOffset;
 
+    out vec4 ex_position_world;
     out vec4 ex_position_view;
+    out vec4 ex_normal_world;
     out vec4 ex_normal_view;
     out vec2 ex_baseColorUv;
     out vec4 ex_color;
 
     void main(void)
     {
+        ex_position_world = in_modelTransform * ve_position;
+        ex_normal_world = vec4(
+            normalize(transpose(inverse(mat3(in_modelTransform))) * ve_normal),
+            0.);
+
         mat4 modelViewTransform = u_camera * in_modelTransform;
         ex_position_view = modelViewTransform * ve_position;
         ex_normal_view = vec4(

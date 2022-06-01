@@ -305,8 +305,10 @@ math::Matrix<4, 4, float> CameraSystem::getCubemapProjectionTransform(std::share
 //
 // GUI
 //
-void CameraSystem::appendCameraControls()
+void CameraSystem::showCameraControls()
 {
+    ImGui::Begin("Camera options");
+
     // Camera selection
     auto nameCamera = [&](std::size_t aId)
     { 
@@ -354,6 +356,8 @@ void CameraSystem::appendCameraControls()
     {
         mCustomCamera.appendProjectionControls();
     }
+
+    ImGui::End();
 }
 
 

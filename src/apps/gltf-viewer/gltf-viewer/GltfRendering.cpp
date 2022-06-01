@@ -1,10 +1,13 @@
 #include "GltfRendering.h"
 
+#include "CubeQuad.h"
 #include "ImguiUi.h"
 #include "Logging.h"
 #include "Shaders.h"
 #include "ShadersPbr.h"
 #include "ShadersPbr_learnopengl.h"
+#include "ShadersPbrIbl_learnopengl.h"
+#include "ShadersSkybox.h"
 
 #include <renderer/Uniforms.h>
 
@@ -187,8 +190,13 @@ void render(const MeshPrimitive & aMeshPrimitive, VT_extraParams ... aExtraDrawP
 
 
 
-Renderer::Renderer()
+Renderer::Renderer() :
+    mSkyboxProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gSkyboxVertexShader},
+        {GL_FRAGMENT_SHADER, gEquirectangularSkyboxFragmentShader},
+    })}
 {
+    setUniformInt(mSkyboxProgram, "u_equirectangularMap", gColorTextureUnit);
     initializePrograms();
 }
 
@@ -209,8 +217,27 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
     graphics::bind_guard boundProgram{aProgram};
 
+    // IBL parameters
+    setUniformFloat(aProgram, "u_ambientFactor", mIbl.mAmbientFactor); 
+    setUniformInt(aProgram, "u_maxReflectionLod", Environment::gPrefilterLevels); 
+
+    // Bind IBL textures
+    if(auto & environment = mIbl.mEnvironment; environment)
+    {
+        glActiveTexture(GL_TEXTURE0 + Renderer::gIrradianceMapTextureUnit);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mIrradianceCubemap);
+
+        glActiveTexture(GL_TEXTURE0 + Renderer::gPrefilterMapTextureUnit);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mPrefilteredCubemap);
+
+        // Is present even if the environment is not, but it would not be used
+        glActiveTexture(GL_TEXTURE0 + Renderer::gBrdfLutTextureUnit);
+        glBindTexture(GL_TEXTURE_2D, mIbl.mBrdfLut);
+    }
+
     setUniformInt(aProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
 
+    // TODO do only once
     setUniformInt(aProgram, "u_baseColorTex", gColorTextureUnit); 
     setUniformInt(aProgram, "u_metallicRoughnessTex", gMetallicRoughnessTextureUnit); 
 
@@ -234,6 +261,7 @@ void Renderer::renderImpl(const Mesh & aMesh,
 void Renderer::render(const Mesh & aMesh) const
 {
     renderImpl(aMesh, *activePrograms().at(GpuProgram::InstancedNoAnimation), aMesh.gpuInstances.size());
+    renderSkybox();
 }
 
 
@@ -241,6 +269,22 @@ void Renderer::render(const Mesh & aMesh, const Skeleton & aSkeleton) const
 {
     bind(aSkeleton);
     renderImpl(aMesh, *activePrograms().at(GpuProgram::Skinning));
+    renderSkybox();
+}
+
+
+void Renderer::renderSkybox() const
+{
+    if(auto & environment = mIbl.mEnvironment; environment)
+    {
+        glActiveTexture(GL_TEXTURE0 + gColorTextureUnit);
+        graphics::bind(environment->mEnvironmentEquirectangular);
+        graphics::bind(mSkyboxProgram);
+
+        auto depthMaskGuard = graphics::scopeDepthMask(false);
+        static const Cube gCube;
+        gCube.draw();
+    }
 }
 
 
@@ -297,9 +341,18 @@ void Renderer::initializePrograms()
         }
     };
 
+    insertPrograms(ShadingModel::Phong, gltfviewer::gPhongFragmentShader);
     insertPrograms(ShadingModel::PbrReference, gltfviewer::gPbrFragmentShader.c_str());
     insertPrograms(ShadingModel::PbrLearn, gltfviewer::gPbrLearnFragmentShader.c_str());
-    insertPrograms(ShadingModel::Phong, gltfviewer::gPhongFragmentShader);
+    insertPrograms(ShadingModel::PbrLearnIbl, gltfviewer::gIblPbrLearnFragmentShader.c_str());
+
+    // The texture units mappings for IBL are permanent
+    for(auto & [_key, program] : mPrograms.at(ShadingModel::PbrLearnIbl))
+    {
+        setUniformInt(*program, "u_irradianceMap", gIrradianceMapTextureUnit); 
+        setUniformInt(*program, "u_prefilterMap", gPrefilterMapTextureUnit); 
+        setUniformInt(*program, "u_brdfLut", gBrdfLutTextureUnit); 
+    }
 }
 
 
@@ -308,7 +361,12 @@ void Renderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aT
     for (auto & [_key, program] : activePrograms())
     {
         setUniform(*program, "u_camera", aTransformation); 
+        // Do the inverse computation, instead of requiring a separate call taking the camera position direclty.
+        setUniform(*program, "u_cameraPosition_world", 
+                   (math::Vec<4, GLfloat>{0.f, 0.f, 0.f, 1.f} * aTransformation.inverse()).xyz()); 
     }
+    math::AffineMatrix<4, GLfloat> viewOrientation{aTransformation.getLinear()};
+    setUniform(mSkyboxProgram,  "u_cameraOrientation", viewOrientation); 
 }
 
 
@@ -318,7 +376,19 @@ void Renderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & a
     {
         setUniform(*program, "u_projection", aTransformation); 
     }
+    setUniform(mSkyboxProgram, "u_projection", aTransformation); 
 }
+
+
+void Renderer::setLight(const Light & aLight)
+{
+    for (auto & [_key, program] : activePrograms())
+    {
+        setUniform(*program, "u_lightColor", aLight.mColor); 
+        setUniform(*program, "u_lightDirection_world", aLight.mDirection); 
+    }
+}
+
 
 
 void Renderer::togglePolygonMode()
@@ -365,7 +435,7 @@ void Renderer::showRendererOptions()
         ImGui::EndCombo();
     }
 
-    if (mShadingModel == ShadingModel::PbrLearn)
+    if (mShadingModel == ShadingModel::PbrLearn || mShadingModel == ShadingModel::PbrLearnIbl)
     {
         if (ImGui::BeginCombo("Color output", to_string(mColorOutput).c_str()))
         {
@@ -387,6 +457,8 @@ void Renderer::showRendererOptions()
             ImGui::EndCombo();
         }
     }
+
+    ImGui::SliderFloat("IBL factor", &mIbl.mAmbientFactor, 0.f, 3.0f, "%.3f");
 
     ImGui::End();
 }

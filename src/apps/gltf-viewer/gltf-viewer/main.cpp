@@ -115,7 +115,7 @@ int main(int argc, const char * argv[])
         ImguiUi imgui{application};
 
         // Requires OpenGL context to call gl functions
-#define IBL
+//#define IBL
 #if defined(IBL)
         if(!arguments.count("env-path"))
         {
@@ -129,6 +129,10 @@ int main(int argc, const char * argv[])
         };
 #else
         Scene viewerScene{gltf, gltfSceneIndex, application.getAppInterface(), imgui};
+        if(arguments.count("env-path"))
+        {
+            viewerScene.renderer.loadEnvironment(arguments["env-path"].as<std::string>());
+        }
 #endif
 
         Timer timer{glfwGetTime(), 0.};

@@ -2,10 +2,12 @@ set(TARGET_NAME gltf-viewer)
 
 set(${TARGET_NAME}_HEADERS
     Camera.h
+    CubeQuad.h
     DataLayout.h
     DebugDrawer.h
     GltfAnimation.h
     GltfRendering.h
+    Ibl.h
     ImguiUi.h
     LoadBuffer.h
     Logging.h
@@ -17,6 +19,8 @@ set(${TARGET_NAME}_HEADERS
     ShadersIblProto.h
     ShadersPbr.h
     ShadersPbr_learnopengl.h
+    ShadersPbrIbl_learnopengl.h
+    ShadersSkybox.h
     SkeletalAnimation.h
     Sphere.h
     Url.h
@@ -25,9 +29,11 @@ set(${TARGET_NAME}_HEADERS
 
 set(${TARGET_NAME}_SOURCES
     Camera.cpp
+    CubeQuad.cpp
     DebugDrawer.cpp
     GltfAnimation.cpp
     GltfRendering.cpp
+    Ibl.cpp
     ImguiUi.cpp
     LoadBuffer.cpp
     Logging.cpp
