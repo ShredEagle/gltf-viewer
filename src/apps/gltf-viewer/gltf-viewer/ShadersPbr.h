@@ -130,7 +130,13 @@ void main()
         vec3 f_diffuse = intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
         vec3 f_specular = intensity * NdotL * BRDF_specularGGX(f0, f90, alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
 
-        out_color = vec4(f_diffuse + f_specular, materialColor.a);
+        vec3 color = f_diffuse + f_specular;
+        // HDR tonemapping
+        color = color / (color + vec3(1.0));
+        // gamma correct
+        color = pow(color, vec3(1.0/2.2));
+
+        out_color = vec4(color, materialColor.a);
     //}
     //vec3 lamb = BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
     //vec3 spec = BRDF_specularGGX(f0, f90, alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);

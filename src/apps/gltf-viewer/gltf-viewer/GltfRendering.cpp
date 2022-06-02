@@ -352,6 +352,8 @@ void Renderer::initializePrograms()
         setUniformInt(*program, "u_irradianceMap", gIrradianceMapTextureUnit); 
         setUniformInt(*program, "u_prefilterMap", gPrefilterMapTextureUnit); 
         setUniformInt(*program, "u_brdfLut", gBrdfLutTextureUnit); 
+        setUniformInt(*program, "u_hdrTonemapping", true); 
+        setUniformInt(*program, "u_gammaCorrect", true); 
     }
 }
 

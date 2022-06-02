@@ -134,6 +134,11 @@ void main()
 
     vec3 color = L0;
 
+    // HDR tonemapping
+    color = color / (color + vec3(1.0));
+    // gamma correct
+    color = pow(color, vec3(1.0/2.2));
+
     switch(u_debugOutput)
     {
     //case METALLIC:
@@ -178,6 +183,12 @@ void main()
         break;
     case 17:
         out_color = vec4(L0, 1.0);
+        break;
+    case 5:
+    case 15:
+    case 16:
+    case 18:
+        out_color = vec4(1.0, 0., 1.0, 1.0);
         break;
     default:
         out_color = vec4(color, materialColor.a);

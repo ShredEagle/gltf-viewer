@@ -164,15 +164,16 @@ inline const GLchar* gPhongFragmentShader = R"#(
         vec4 bisector_view = vec4(normalize(vec3(0., 0., 1.) + lightDirection_view.xyz), 0.);
 
         // Use the same color for all lighting components (diffuse, specular and ambient).
-        out_color = vec4(
-            materialColor.xyz * u_light.color
-                * ( max(0., dot(n, lightDirection_view)) * u_light.diffuse  // diffuse
-                    + max(0., pow(dot(n, bisector_view), u_light.specularExponent)) * u_light.ambient // specular
-                    + u_light.ambient // ambient
-                   )
-            ,
-            materialColor.w);
-            //1.);
+        vec3 color = materialColor.xyz * u_light.color
+                     * ( max(0., dot(n, lightDirection_view)) * u_light.diffuse  // diffuse
+                         + max(0., pow(dot(n, bisector_view), u_light.specularExponent)) * u_light.ambient // specular
+                         + u_light.ambient // ambient
+                        );
+
+        // gamma correction
+        color = pow(color, vec3(1.0/2.2));
+
+        out_color = vec4(color, materialColor.w);
 
         //out_color = n;
         //out_color = materialColor;
