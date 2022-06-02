@@ -36,6 +36,20 @@ namespace {
 } // namespace anonymous
 
 
+std::string to_string(Environment::Content aEnvironment)
+{
+    switch(aEnvironment)
+    {
+    case Environment::Content::Radiance:
+        return "Radiance";
+    case Environment::Content::Irradiance:
+        return "Irradiance";
+    case Environment::Content::Prefiltered:
+        return "Prefiltered";
+    }
+}
+
+
 graphics::Texture loadEquirectangularMapHdr(const filesystem::path & aEquirectangular)
 {
     graphics::Texture equirect{GL_TEXTURE_2D};
@@ -240,9 +254,9 @@ graphics::Texture prepareBrdfLut()
 
 
 Environment::Environment(graphics::Texture aEnvironmentRectangular) :
-    mEnvironmentEquirectangular{std::move(aEnvironmentRectangular)},
-    mIrradianceCubemap{prepareIrradiance(mEnvironmentEquirectangular)},
-    mPrefilteredCubemap{prefilterEnvironment(mEnvironmentEquirectangular)}
+    mEnvironmentEquirectangular{std::move(aEnvironmentRectangular), EnvironmentTexture::Type::Equirectangular},
+    mIrradianceCubemap{prepareIrradiance(mEnvironmentEquirectangular), EnvironmentTexture::Type::Cubemap},
+    mPrefilteredCubemap{prefilterEnvironment(mEnvironmentEquirectangular), EnvironmentTexture::Type::Cubemap}
 {}
 
 

@@ -194,14 +194,57 @@ void render(const MeshPrimitive & aMeshPrimitive, VT_extraParams ... aExtraDrawP
 }
 
 
-
-Renderer::Renderer() :
-    mSkyboxProgram{graphics::makeLinkedProgram({
+SkyboxRenderer::SkyboxRenderer() :
+    mEquirectangularProgram{graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gSkyboxVertexShader},
         {GL_FRAGMENT_SHADER, gEquirectangularSkyboxFragmentShader},
+    })},
+    mCubemapProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gSkyboxVertexShader},
+        {GL_FRAGMENT_SHADER, gLodCubemapSkyboxFragmentShader},
     })}
 {
-    setUniformInt(mSkyboxProgram, "u_equirectangularMap", gColorTextureUnit);
+    setUniformInt(mEquirectangularProgram, "u_equirectangularMap", Renderer::gColorTextureUnit);
+    setUniformInt(mCubemapProgram, "u_cubemap", Renderer::gColorTextureUnit);
+}
+
+
+void SkyboxRenderer::render(const EnvironmentTexture & aSkybox) const
+{
+    glActiveTexture(GL_TEXTURE0 + Renderer::gColorTextureUnit);
+    graphics::bind(aSkybox);
+    graphics::bind(aSkybox.mType == EnvironmentTexture::Type::Equirectangular ?
+        mEquirectangularProgram : mCubemapProgram);
+
+    auto depthMaskGuard = graphics::scopeDepthMask(false);
+    static const Cube gCube;
+    gCube.draw();
+}
+
+
+void SkyboxRenderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aTransformation)
+{
+    math::AffineMatrix<4, GLfloat> viewOrientation{aTransformation.getLinear()};
+    setUniform(mEquirectangularProgram, "u_cameraOrientation", viewOrientation); 
+    setUniform(mCubemapProgram, "u_cameraOrientation", viewOrientation); 
+}
+
+
+void SkyboxRenderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & aTransformation)
+{
+    setUniform(mEquirectangularProgram, "u_projection", aTransformation); 
+    setUniform(mCubemapProgram, "u_projection", aTransformation); 
+}
+
+
+void SkyboxRenderer::setPrefilterLod(GLint aLodLevel)
+{
+    setUniformInt(mCubemapProgram, "u_explicitLod", aLodLevel);
+}
+
+
+Renderer::Renderer()
+{
     initializePrograms();
 }
 
@@ -285,13 +328,20 @@ void Renderer::renderSkybox() const
 {
     if(auto & environment = mIbl.mEnvironment; environment)
     {
-        glActiveTexture(GL_TEXTURE0 + gColorTextureUnit);
-        graphics::bind(environment->mEnvironmentEquirectangular);
-        graphics::bind(mSkyboxProgram);
+        auto pickSkybox = [&]() -> const EnvironmentTexture &
+        {
+            switch(mShownSkybox)
+            {
+            case Environment::Content::Radiance:
+                return environment->mEnvironmentEquirectangular;
+            case Environment::Content::Irradiance:
+                return environment->mIrradianceCubemap;
+            case Environment::Content::Prefiltered:
+                return environment->mPrefilteredCubemap;
+            }
+        };
 
-        auto depthMaskGuard = graphics::scopeDepthMask(false);
-        static const Cube gCube;
-        gCube.draw();
+        mSkyboxRenderer.render(pickSkybox());
     }
 }
 
@@ -375,8 +425,7 @@ void Renderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aT
         setUniform(*program, "u_cameraPosition_world", 
                    (math::Vec<4, GLfloat>{0.f, 0.f, 0.f, 1.f} * aTransformation.inverse()).xyz()); 
     }
-    math::AffineMatrix<4, GLfloat> viewOrientation{aTransformation.getLinear()};
-    setUniform(mSkyboxProgram,  "u_cameraOrientation", viewOrientation); 
+    mSkyboxRenderer.setCameraTransformation(aTransformation);
 }
 
 
@@ -386,7 +435,7 @@ void Renderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & a
     {
         setUniform(*program, "u_projection", aTransformation); 
     }
-    setUniform(mSkyboxProgram, "u_projection", aTransformation); 
+    mSkyboxRenderer.setProjectionTransformation(aTransformation);
 }
 
 
@@ -466,6 +515,32 @@ void Renderer::showRendererOptions()
             }
             ImGui::EndCombo();
         }
+    }
+
+    if (ImGui::BeginCombo("Skybox", to_string(mShownSkybox).c_str()))
+    {
+        for (int id = 0; id < static_cast<int>(Environment::Content::_End); ++id)
+        {
+            Environment::Content entry = static_cast<Environment::Content>(id);
+            const bool isSelected = (mShownSkybox == entry);
+            if (ImGui::Selectable(to_string(entry).c_str(), isSelected))
+            {
+                mShownSkybox = entry;
+            }
+
+            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+            if (isSelected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if(mShownSkybox == Environment::Content::Prefiltered)
+    {
+        ImGui::SliderInt("Prefiltered level", &mPrefilteredLod, 0, gltfviewer::Environment::gPrefilterLevels - 1);
+        mSkyboxRenderer.setPrefilterLod(mPrefilteredLod);
     }
 
     if(mShadingModel == ShadingModel::PbrLearnIbl)

@@ -1,6 +1,5 @@
 #include "SceneIblProto.h"
 
-#include "Ibl.h"
 #include "Shaders.h" // For gQuadVertexShader
 #include "ShadersIblProto.h"
 #include "ShadersSkybox.h"
@@ -149,15 +148,15 @@ void IblRenderer::render() const
         {
             switch(mEnvMap)
             {
-            case Environment::Radiance:
+            case Environment::Content::Radiance:
                 bind(mCubemap);
                 bind(mEquirectangularProgram);
                 break;
-            case Environment::Irradiance:
+            case Environment::Content::Irradiance:
                 bind(mIrradianceCubemap);
                 bind(mCubemapProgram);
                 break;
-            case Environment::Prefiltered:
+            case Environment::Content::Prefiltered:
                 bind(mPrefilteredCubemap);
                 bind(mCubemapProgram);
                 break;
@@ -268,9 +267,9 @@ void IblRenderer::showRendererOptions()
 
         if (ImGui::BeginCombo("Environment map", to_string(mEnvMap).c_str()))
         {
-            for (int id = 0; id < static_cast<int>(Environment::_End); ++id)
+            for (int id = 0; id < static_cast<int>(Environment::Content::_End); ++id)
             {
-                Environment entry = static_cast<Environment>(id);
+                Environment::Content entry = static_cast<Environment::Content>(id);
                 const bool isSelected = (mEnvMap == entry);
                 if (ImGui::Selectable(to_string(entry).c_str(), isSelected))
                 {
@@ -286,7 +285,7 @@ void IblRenderer::showRendererOptions()
             ImGui::EndCombo();
         }
 
-        if(mEnvMap == Environment::Prefiltered)
+        if(mEnvMap == Environment::Content::Prefiltered)
         {
             if(mPrefilteredLod == -1)
             {

@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "CubeQuad.h"
 #include "GltfRendering.h"
+#include "Ibl.h"
 #include "ImguiUi.h"
 #include "Sphere.h"
 
@@ -23,16 +24,6 @@ namespace gltfviewer {
 
 struct IblRenderer
 {
-    enum class Environment
-    {
-        Radiance,
-        Irradiance,
-        Prefiltered,
-
-        // Keep last
-        _End//
-    };
-
     IblRenderer(const filesystem::path & aEnvironmentMap);
 
     void update();
@@ -53,7 +44,7 @@ struct IblRenderer
     graphics::Texture mBrdfLut;
 
     bool mShowBrdfLut{false};
-    Environment mEnvMap{Environment::Radiance};
+    Environment::Content mEnvMap{Environment::Content::Radiance};
     int mPrefilteredLod{-1};
 
     bool mShowObject{true};
@@ -69,20 +60,6 @@ struct IblRenderer
     static constexpr GLsizei gPrefilterMapTextureUnit{4};
     static constexpr GLsizei gBrdfLutTextureUnit{5};
 };
-
-
-inline std::string to_string(IblRenderer::Environment aEnvironment)
-{
-    switch(aEnvironment)
-    {
-    case IblRenderer::Environment::Radiance:
-        return "Radiance";
-    case IblRenderer::Environment::Irradiance:
-        return "Irradiance";
-    case IblRenderer::Environment::Prefiltered:
-        return "Prefiltered";
-    }
-}
 
 
 struct SceneIblProto

@@ -54,5 +54,26 @@ inline const GLchar* gEquirectangularSkyboxFragmentShader = R"#(
 )#";
 
 
+inline const GLchar* gLodCubemapSkyboxFragmentShader = R"#(
+    #version 400
+
+    in vec3 ex_position_local;
+
+    out vec4 out_color;
+
+    uniform samplerCube u_cubemap;
+    uniform int u_explicitLod;
+
+    void main(void)
+    {
+        out_color = textureLod(u_cubemap, ex_position_local, u_explicitLod);
+
+        // HDR tonemapping
+        out_color.rgb = out_color.rgb / (out_color.rgb + vec3(1.0));
+        // Gamma correct
+        out_color = vec4(pow(out_color.rgb, vec3(1.0/2.2)), out_color.a);
+    }
+)#";
+
 } // namespace gltfviewer
 } // namespace ad

@@ -89,6 +89,24 @@ struct Light
 };
 
 
+class SkyboxRenderer
+{
+public:
+    SkyboxRenderer();
+
+    void render(const EnvironmentTexture & aSkybox) const;
+
+    void setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aTransformation);
+    void setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & aTransformation);
+
+    void setPrefilterLod(GLint aLodLevel);
+
+private:
+    graphics::Program mEquirectangularProgram;
+    graphics::Program mCubemapProgram;
+};
+
+
 class Renderer
 {
     using ShadingPrograms = std::map<GpuProgram, std::shared_ptr<graphics::Program>>;
@@ -138,9 +156,11 @@ private:
     std::map<ShadingModel, ShadingPrograms> mPrograms;
     ShadingModel mShadingModel{ShadingModel::PbrReference};
     Ibl mIbl;
-    graphics::Program mSkyboxProgram;
+    SkyboxRenderer mSkyboxRenderer;
     PolygonMode mPolygonMode{PolygonMode::Fill};
     DebugColor mColorOutput{DebugColor::Default};
+    Environment::Content mShownSkybox{Environment::Content::Radiance};
+    GLint mPrefilteredLod{0};
     bool mEnableOcclusionTexture{true};
 };
 
