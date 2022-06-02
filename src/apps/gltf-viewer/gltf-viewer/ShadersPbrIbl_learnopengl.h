@@ -80,6 +80,11 @@ uniform float u_metallicFactor;
 uniform float u_roughnessFactor;
 uniform sampler2D u_metallicRoughnessTex;
 
+// Ambient occlusion
+uniform sampler2D u_occlusionTex;
+uniform float     u_occlusionStrength;
+uniform bool      u_enableOcclusionTexture;
+
 // IBL parameters
 uniform float       u_ambientFactor;
 uniform int         u_maxReflectionLod;
@@ -178,7 +183,13 @@ void main()
         specular_Ibl = prefilteredColor * (F_Ibl * brdf.r + brdf.g);
     }
 
-    vec3 ambient = diffuse_Ibl + specular_Ibl;
+    float ambientOcclusion = 1.0;
+    if(u_enableOcclusionTexture)
+    {
+        ambientOcclusion += u_occlusionStrength * (texture(u_occlusionTex, ex_baseColorUv).r - 1.0);
+    }
+
+    vec3 ambient = (diffuse_Ibl + specular_Ibl) * ambientOcclusion;
     vec3 color = L0 + ambient * u_ambientFactor;
 
     // HDR tonemapping
@@ -204,48 +215,51 @@ void main()
         out_color = materialColor;
         break;
     case 4:
-        out_color = vec4(F_Light, 1.0);
+        out_color = vec4(vec3(ambientOcclusion), 1.0);
         break;
     case 5:
-        out_color = vec4(F_Ibl, 1.0);
+        out_color = vec4(F_Light, 1.0);
         break;
     case 6:
-        out_color = vec4(n, 1.0);
+        out_color = vec4(F_Ibl, 1.0);
         break;
     case 7:
-        out_color = vec4(v, 1.0);
+        out_color = vec4(n, 1.0);
         break;
     case 8:
-        out_color = vec4(h, 1.0);
+        out_color = vec4(v, 1.0);
         break;
     case 9:
-        out_color = vec4(vec3(NdotL), 1.0);
+        out_color = vec4(h, 1.0);
         break;
     case 10:
-        out_color = vec4(vec3(VdotH), 1.0);
+        out_color = vec4(vec3(NdotL), 1.0);
         break;
     case 11:
-        out_color = vec4(vec3(NDF), 1.0);
+        out_color = vec4(vec3(VdotH), 1.0);
         break;
     case 12:
-        out_color = vec4(vec3(G), 1.0);
+        out_color = vec4(vec3(NDF), 1.0);
         break;
     case 13:
-        out_color = vec4(diffuse, 1.0);
+        out_color = vec4(vec3(G), 1.0);
         break;
     case 14:
-        out_color = vec4(specular, 1.0);
+        out_color = vec4(diffuse, 1.0);
         break;
     case 15:
-        out_color = vec4(diffuse_Ibl, 1.0);
+        out_color = vec4(specular, 1.0);
         break;
     case 16:
-        out_color = vec4(specular_Ibl, 1.0);
+        out_color = vec4(diffuse_Ibl, 1.0);
         break;
     case 17:
-        out_color = vec4(L0, 1.0);
+        out_color = vec4(specular_Ibl, 1.0);
         break;
     case 18:
+        out_color = vec4(L0, 1.0);
+        break;
+    case 19:
         out_color = vec4(ambient, 1.0);
         break;
     default:

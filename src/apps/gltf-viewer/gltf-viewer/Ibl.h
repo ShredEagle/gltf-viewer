@@ -33,7 +33,7 @@ struct Ibl
 {
     void loadEnvironment(const filesystem::path & aEnvironmentHdr);
 
-    GLfloat mAmbientFactor{0.6f};
+    GLfloat mAmbientFactor{1.0f};
     std::optional<Environment> mEnvironment;
     const graphics::Texture mBrdfLut{prepareBrdfLut()};
 };

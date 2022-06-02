@@ -35,6 +35,8 @@ inline std::string to_string(DebugColor aColor)
         return "Roughness";
     case DebugColor::Albedo:
         return "Albedo";
+    case DebugColor::Occlusion:
+        return "Occlusion";
     case DebugColor::FresnelLight:
         return "FresnelLight";
     case DebugColor::FresnelIbl:
@@ -183,6 +185,9 @@ void render(const MeshPrimitive & aMeshPrimitive, VT_extraParams ... aExtraDrawP
     glActiveTexture(GL_TEXTURE0 + Renderer::gMetallicRoughnessTextureUnit);
     glBindTexture(GL_TEXTURE_2D, *material.metallicRoughnessTexture);
 
+    glActiveTexture(GL_TEXTURE0 + Renderer::gOcclusionTextureUnit);
+    glBindTexture(GL_TEXTURE_2D, *material.occlusionTexture);
+
     drawCall(aMeshPrimitive, std::forward<VT_extraParams>(aExtraDrawParams)...);
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -236,16 +241,19 @@ void Renderer::renderImpl(const Mesh & aMesh,
     }
 
     setUniformInt(aProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
+    setUniformInt(aProgram, "u_enableOcclusionTexture", mEnableOcclusionTexture); 
 
     // TODO do only once
     setUniformInt(aProgram, "u_baseColorTex", gColorTextureUnit); 
     setUniformInt(aProgram, "u_metallicRoughnessTex", gMetallicRoughnessTextureUnit); 
+    setUniformInt(aProgram, "u_occlusionTex", gOcclusionTextureUnit); 
 
     for (const auto & primitive : aMesh.primitives)
     {
         setUniform(aProgram, "u_baseColorFactor", primitive.material.baseColorFactor); 
         setUniformFloat(aProgram, "u_metallicFactor", primitive.material.metallicFactor); 
         setUniformFloat(aProgram, "u_roughnessFactor", primitive.material.roughnessFactor); 
+        setUniformFloat(aProgram, "u_occlusionStrength", primitive.material.occlusionStrength); 
 
         // If the vertex color are not provided for the primitive, the default value (black)
         // will be used in the shaders. It must be offset to white.
@@ -460,7 +468,11 @@ void Renderer::showRendererOptions()
         }
     }
 
-    ImGui::SliderFloat("IBL factor", &mIbl.mAmbientFactor, 0.f, 3.0f, "%.3f");
+    if(mShadingModel == ShadingModel::PbrLearnIbl)
+    {
+        ImGui::SliderFloat("IBL factor", &mIbl.mAmbientFactor, 0.f, 3.0f, "%.3f");
+        ImGui::Checkbox("Ambient occlusion", &mEnableOcclusionTexture);
+    }
 
     ImGui::End();
 }

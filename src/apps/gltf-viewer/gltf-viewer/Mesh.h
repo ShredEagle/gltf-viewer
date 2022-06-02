@@ -81,6 +81,8 @@ struct Material
     GLfloat metallicFactor;
     GLfloat roughnessFactor;
     std::shared_ptr<graphics::Texture> metallicRoughnessTexture;
+    GLfloat occlusionStrength{1.f};
+    std::shared_ptr<graphics::Texture> occlusionTexture;
 
 
     static std::shared_ptr<graphics::Texture> DefaultTexture();

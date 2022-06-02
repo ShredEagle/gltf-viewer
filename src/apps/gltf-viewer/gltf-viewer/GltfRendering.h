@@ -57,6 +57,7 @@ enum class DebugColor
     Metallic,
     Roughness,
     Albedo,
+    Occlusion,
     FresnelLight,
     FresnelIbl,
     Normal,
@@ -114,11 +115,12 @@ public:
 
     static constexpr GLsizei gColorTextureUnit{0};
     static constexpr GLsizei gMetallicRoughnessTextureUnit{1};
+    static constexpr GLsizei gOcclusionTextureUnit{3};
     static constexpr GLuint gPaletteBlockBinding{3};
 
-    static constexpr GLsizei gIrradianceMapTextureUnit{3};
-    static constexpr GLsizei gPrefilterMapTextureUnit{4};
-    static constexpr GLsizei gBrdfLutTextureUnit{5};
+    static constexpr GLsizei gIrradianceMapTextureUnit{4};
+    static constexpr GLsizei gPrefilterMapTextureUnit{5};
+    static constexpr GLsizei gBrdfLutTextureUnit{6};
 
 private:
     enum class PolygonMode
@@ -139,6 +141,7 @@ private:
     graphics::Program mSkyboxProgram;
     PolygonMode mPolygonMode{PolygonMode::Fill};
     DebugColor mColorOutput{DebugColor::Default};
+    bool mEnableOcclusionTexture{true};
 };
 
 } // namespace gltfviewer

@@ -236,10 +236,18 @@ Material::Material(arte::Const_Owned<arte::gltf::Material> aMaterial) :
     alphaMode{aMaterial->alphaMode},
     doubleSided{aMaterial->doubleSided}
 {
-    auto textureDefault = [&aMaterial](std::optional<gltf::TextureInfo> aTextureInfo, ColorSpace aInputColorSpace)
+    auto textureDefault = [&aMaterial]<class T_info>(std::optional<T_info> aTextureInfo, ColorSpace aInputColorSpace)
     {
         if(aTextureInfo)
         {
+            // Only supporting TEXCOORD_0 for the moment
+            if(aTextureInfo->texCoord != 0)
+            {
+                ADLOG(gPrepareLogger, critical)
+                     ("Unsupported: Texture info references TEXCOORD #{}.", aTextureInfo->texCoord);
+                throw std::logic_error{"Texture coordinate set other than 0 not implemented."};
+            }
+
             return prepare(aMaterial.get<gltf::Texture>(aTextureInfo->index), aInputColorSpace);
         }
         else
@@ -255,6 +263,12 @@ Material::Material(arte::Const_Owned<arte::gltf::Material> aMaterial) :
     metallicFactor = pbr.metallicFactor;
     roughnessFactor = pbr.roughnessFactor;
     metallicRoughnessTexture = textureDefault(pbr.metallicRoughnessTexture, ColorSpace::LinearRgb);
+
+    occlusionTexture = textureDefault(aMaterial->occlusionTexture, ColorSpace::LinearRgb);
+    if(aMaterial->occlusionTexture)
+    {
+        occlusionStrength = aMaterial->occlusionTexture->strength;
+    }
 }
 
 

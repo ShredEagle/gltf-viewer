@@ -151,43 +151,44 @@ void main()
     case 3:
         out_color = materialColor;
         break;
-    case 4:
+    case 5:
         out_color = vec4(F, 1.0);
         break;
-    case 6:
+    case 7:
         out_color = vec4(n, 1.0);
         break;
-    case 7:
+    case 8:
         out_color = vec4(v, 1.0);
         break;
-    case 8:
+    case 9:
         out_color = vec4(h, 1.0);
         break;
-    case 9:
+    case 10:
         out_color = vec4(vec3(NdotL), 1.0);
         break;
-    case 10:
+    case 11:
         out_color = vec4(vec3(VdotH), 1.0);
         break;
-    case 11:
+    case 12:
         out_color = vec4(vec3(NDF), 1.0);
         break;
-    case 12:
+    case 13:
         out_color = vec4(vec3(G), 1.0);
         break;
-    case 13:
+    case 14:
         out_color = vec4(diffuse, 1.0);
         break;
-    case 14:
+    case 15:
         out_color = vec4(specular, 1.0);
         break;
-    case 17:
+    case 18:
         out_color = vec4(L0, 1.0);
         break;
-    case 5:
-    case 15:
+    case 4:
+    case 6:
     case 16:
-    case 18:
+    case 17:
+    case 19:
         out_color = vec4(1.0, 0., 1.0, 1.0);
         break;
     default:
