@@ -260,16 +260,16 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
 void Renderer::render(const Mesh & aMesh) const
 {
-    renderImpl(aMesh, *activePrograms().at(GpuProgram::InstancedNoAnimation), aMesh.gpuInstances.size());
     renderSkybox();
+    renderImpl(aMesh, *activePrograms().at(GpuProgram::InstancedNoAnimation), aMesh.gpuInstances.size());
 }
 
 
 void Renderer::render(const Mesh & aMesh, const Skeleton & aSkeleton) const
 {
+    renderSkybox();
     bind(aSkeleton);
     renderImpl(aMesh, *activePrograms().at(GpuProgram::Skinning));
-    renderSkybox();
 }
 
 
