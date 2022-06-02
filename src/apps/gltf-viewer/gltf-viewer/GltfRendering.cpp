@@ -246,6 +246,9 @@ void SkyboxRenderer::setPrefilterLod(GLint aLodLevel)
 Renderer::Renderer()
 {
     initializePrograms();
+
+    // Sampling accross cubemap faces
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);  
 }
 
 
@@ -276,7 +279,7 @@ void Renderer::renderImpl(const Mesh & aMesh,
         glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mIrradianceCubemap);
 
         glActiveTexture(GL_TEXTURE0 + Renderer::gPrefilterMapTextureUnit);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mPrefilteredCubemap);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mPrefilteredAntialiasedCubemap);
 
         // Is present even if the environment is not, but it would not be used
         glActiveTexture(GL_TEXTURE0 + Renderer::gBrdfLutTextureUnit);
@@ -338,6 +341,8 @@ void Renderer::renderSkybox() const
                 return environment->mIrradianceCubemap;
             case Environment::Content::Prefiltered:
                 return environment->mPrefilteredCubemap;
+            case Environment::Content::PrefilteredAntialiased:
+                return environment->mPrefilteredAntialiasedCubemap;
             }
         };
 
@@ -537,7 +542,7 @@ void Renderer::showRendererOptions()
         ImGui::EndCombo();
     }
 
-    if(mShownSkybox == Environment::Content::Prefiltered)
+    if(mShownSkybox == Environment::Content::Prefiltered || mShownSkybox == Environment::Content::PrefilteredAntialiased)
     {
         ImGui::SliderInt("Prefiltered level", &mPrefilteredLod, 0, gltfviewer::Environment::gPrefilterLevels - 1);
         mSkyboxRenderer.setPrefilterLod(mPrefilteredLod);

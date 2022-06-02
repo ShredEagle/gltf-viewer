@@ -12,7 +12,7 @@ namespace gltfviewer {
 
 graphics::Texture loadEquirectangularMapHdr(const filesystem::path & aEquirectangular);
 graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect);
-graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquirect);
+graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquirect, bool aLodAntialiasing);
 graphics::Texture prepareBrdfLut();
 
 
@@ -45,6 +45,7 @@ struct Environment
         Radiance,
         Irradiance,
         Prefiltered,
+        PrefilteredAntialiased,
 
         // Keep last
         _End//
@@ -55,6 +56,7 @@ struct Environment
     EnvironmentTexture mEnvironmentEquirectangular;
     EnvironmentTexture mIrradianceCubemap;
     EnvironmentTexture mPrefilteredCubemap;
+    EnvironmentTexture mPrefilteredAntialiasedCubemap;
     static constexpr math::Size<2, int> gPrefilterSize{128, 128};
     static constexpr GLint gPrefilterLevels{4};
 };

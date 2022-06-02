@@ -255,6 +255,80 @@ const std::string gPrefilterFragmentShader = R"#(
 )#";
 
 
+const std::string gAntialiasPrefilterFragmentShader = R"#(
+    #version 400
+
+)#" + common + R"#(
+
+    float DistributionGGX(vec3 N, vec3 H, float roughness)
+    {
+        float a = roughness*roughness;
+        float a2 = a*a;
+        float NdotH = max(dot(N, H), 0.0);
+        float NdotH2 = NdotH*NdotH;
+
+        float nom   = a2;
+        float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+        denom = PI * denom * denom;
+
+        return nom / denom;
+    }
+
+    in vec3 ex_position_local;
+
+    out vec4 out_color;
+
+    uniform float u_roughness;
+    uniform sampler2D u_equirectangularMap;
+
+
+    const uint SAMPLE_COUNT = 1024u;
+
+    void main(void)
+    {
+        vec3 N = normalize(ex_position_local);    
+        // TODO: understand those assignments
+        vec3 R = N;
+        vec3 V = R;
+
+        float totalWeight = 0.0;   
+        vec3 prefilteredColor = vec3(0.0);     
+        for(uint i = 0u; i < SAMPLE_COUNT; ++i)
+        {
+            vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+            vec3 H  = ImportanceSampleGGX(Xi, N, u_roughness);
+            // TODO: understand why this is the light vector?
+            vec3 L  = normalize(2.0 * dot(V, H) * H - V);
+
+            float NdotL = max(dot(N, L), 0.0);
+            if(NdotL > 0.0)
+            {
+                // sample from the environment's mip level based on roughness/pdf
+                float D   = DistributionGGX(N, H, u_roughness);
+                float NdotH = max(dot(N, H), 0.0);
+                float HdotV = max(dot(H, V), 0.0);
+                float pdf = D * NdotH / (4.0 * HdotV) + 0.0001; 
+
+                // WARNING: the source is not actually a cubemap, but an equirect
+                // let's keep this value atm.
+                float resolution = 512.0; // resolution of source cubemap (per face)
+                float saTexel  = 4.0 * PI / (6.0 * resolution * resolution);
+                float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+
+                float mipLevel = u_roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
+
+                vec2 uv = sampleSphericalMap(L);
+                prefilteredColor += textureLod(u_equirectangularMap, uv, mipLevel).rgb * NdotL;
+                totalWeight      += NdotL;
+            }
+        }
+        prefilteredColor = prefilteredColor / totalWeight;
+
+        out_color = vec4(prefilteredColor, 1.0);
+    }
+)#";
+
+
 const std::string gBrdfLutFragmentShader = R"#(
     #version 400
 

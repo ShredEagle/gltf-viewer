@@ -115,7 +115,8 @@ IblRenderer::IblRenderer(const filesystem::path & aEnvironmentMap) :
     })},
     mCubemap{loadCubemap(aEnvironmentMap)},
     mIrradianceCubemap{prepareIrradiance(mCubemap)},
-    mPrefilteredCubemap{prefilterEnvironment(mCubemap)},
+    mPrefilteredCubemap{prefilterEnvironment(mCubemap, false)},
+    mPrefilteredAntialiasedCubemap{prefilterEnvironment(mCubemap, true)},
     mBrdfLut{prepareBrdfLut()}
 {
     setUniformInt(mCubemapProgram, "u_cubemap", gCubemapTextureUnit);
@@ -160,6 +161,10 @@ void IblRenderer::render() const
                 bind(mPrefilteredCubemap);
                 bind(mCubemapProgram);
                 break;
+            case Environment::Content::PrefilteredAntialiased:
+                bind(mPrefilteredAntialiasedCubemap);
+                bind(mCubemapProgram);
+                break;
             }
 
             auto depthMaskGuard = graphics::scopeDepthMask(false);
@@ -172,7 +177,7 @@ void IblRenderer::render() const
             glActiveTexture(GL_TEXTURE0 + gCubemapTextureUnit);
             graphics::bind_guard boundCubemap{mIrradianceCubemap};
             glActiveTexture(GL_TEXTURE0 + gPrefilterMapTextureUnit);
-            bind(mPrefilteredCubemap);
+            bind(mPrefilteredAntialiasedCubemap);
             glActiveTexture(GL_TEXTURE0 + gBrdfLutTextureUnit);
             bind(mBrdfLut);
 
@@ -251,7 +256,8 @@ void IblRenderer::showRendererOptions()
             {
                 mCubemap = loadCubemap(outPath);
                 mIrradianceCubemap = prepareIrradiance(mCubemap);
-                mPrefilteredCubemap = prefilterEnvironment(mCubemap);
+                mPrefilteredCubemap = prefilterEnvironment(mCubemap, false);
+                mPrefilteredAntialiasedCubemap = prefilterEnvironment(mCubemap, true);
 
                 free(outPath);
             }
@@ -285,7 +291,7 @@ void IblRenderer::showRendererOptions()
             ImGui::EndCombo();
         }
 
-        if(mEnvMap == Environment::Content::Prefiltered)
+        if(mEnvMap == Environment::Content::Prefiltered || mEnvMap == Environment::Content::PrefilteredAntialiased)
         {
             if(mPrefilteredLod == -1)
             {

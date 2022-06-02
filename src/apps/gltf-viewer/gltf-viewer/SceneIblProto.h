@@ -41,6 +41,7 @@ struct IblRenderer
     graphics::Texture mCubemap;
     graphics::Texture mIrradianceCubemap;
     graphics::Texture mPrefilteredCubemap;
+    graphics::Texture mPrefilteredAntialiasedCubemap;
     graphics::Texture mBrdfLut;
 
     bool mShowBrdfLut{false};

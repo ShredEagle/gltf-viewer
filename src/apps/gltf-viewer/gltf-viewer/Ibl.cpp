@@ -46,6 +46,8 @@ std::string to_string(Environment::Content aEnvironment)
         return "Irradiance";
     case Environment::Content::Prefiltered:
         return "Prefiltered";
+    case Environment::Content::PrefilteredAntialiased:
+        return "PrefilteredAntialiased";
     }
 }
 
@@ -59,7 +61,8 @@ graphics::Texture loadEquirectangularMapHdr(const filesystem::path & aEquirectan
     using ImageType = arte::Image<math::hdr::Rgb<GLfloat>>;
     ImageType image{aEquirectangular, arte::ImageOrientation::InvertVerticalAxis};
 
-    allocateStorage(equirect, GL_RGB16F, image.dimensions());
+    allocateStorage(equirect, GL_RGB16F, image.dimensions(),
+                    graphics::countCompleteMipmaps(image.dimensions()));
 
     // Cannot bind earlier, allocate storage scopes the bind...
     graphics::bind_guard boundTexture{equirect};
@@ -73,12 +76,14 @@ graphics::Texture loadEquirectangularMapHdr(const filesystem::path & aEquirectan
                     GL_FLOAT,
                     image.data());
 
-    // No mipmap atm though
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    // TODO Rendering the environment map with linear mipmap filtering ends up with dotted lines in some envs.
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     return equirect;
 }
@@ -144,7 +149,7 @@ graphics::Texture prepareIrradiance(const graphics::Texture & aRadianceEquirect)
 }
 
 
-graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquirect)
+graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquirect, bool aLodAntialiasing)
 {
     constexpr GLint gTextureUnit = 0;
     assert(Environment::gPrefilterLevels > 1);
@@ -168,12 +173,23 @@ graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquire
 
     auto convolution = graphics::makeLinkedProgram({
         {GL_VERTEX_SHADER,   gIblVertexShader},
-        {GL_FRAGMENT_SHADER, gPrefilterFragmentShader.c_str()},
+        {GL_FRAGMENT_SHADER, aLodAntialiasing ? 
+                             gAntialiasPrefilterFragmentShader.c_str() : gPrefilterFragmentShader.c_str()},
     });
     bind(convolution);
 
     glActiveTexture(GL_TEXTURE0 + gTextureUnit);
     bind(aRadianceEquirect);
+
+    GLint previousMinFilter;
+    glGetTexParameteriv(aRadianceEquirect.mTarget, GL_TEXTURE_MIN_FILTER, &previousMinFilter);
+
+    // Mipmap linear filtering must be enabled for lod based sampling in prefilter shader
+    if(aLodAntialiasing)
+    {
+        glTexParameteri(aRadianceEquirect.mTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    }
+
     setUniformInt(convolution, "u_equirectangularMap", gTextureUnit);
 
     setUniform(convolution, "u_projection",
@@ -207,6 +223,9 @@ graphics::Texture prefilterEnvironment(const graphics::Texture & aRadianceEquire
             gCube.draw();
         }
     }
+
+    glTexParameteri(aRadianceEquirect.mTarget, GL_TEXTURE_MIN_FILTER, previousMinFilter);
+
     return cubemap;
 }
 
@@ -256,7 +275,8 @@ graphics::Texture prepareBrdfLut()
 Environment::Environment(graphics::Texture aEnvironmentRectangular) :
     mEnvironmentEquirectangular{std::move(aEnvironmentRectangular), EnvironmentTexture::Type::Equirectangular},
     mIrradianceCubemap{prepareIrradiance(mEnvironmentEquirectangular), EnvironmentTexture::Type::Cubemap},
-    mPrefilteredCubemap{prefilterEnvironment(mEnvironmentEquirectangular), EnvironmentTexture::Type::Cubemap}
+    mPrefilteredCubemap{prefilterEnvironment(mEnvironmentEquirectangular, false), EnvironmentTexture::Type::Cubemap},
+    mPrefilteredAntialiasedCubemap{prefilterEnvironment(mEnvironmentEquirectangular, true), EnvironmentTexture::Type::Cubemap}
 {}
 
 

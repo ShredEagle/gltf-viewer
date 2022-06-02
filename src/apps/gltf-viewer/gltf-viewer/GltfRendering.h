@@ -154,7 +154,7 @@ private:
     void renderSkybox() const;
 
     std::map<ShadingModel, ShadingPrograms> mPrograms;
-    ShadingModel mShadingModel{ShadingModel::PbrReference};
+    ShadingModel mShadingModel{ShadingModel::PbrLearnIbl};
     Ibl mIbl;
     SkyboxRenderer mSkyboxRenderer;
     PolygonMode mPolygonMode{PolygonMode::Fill};
