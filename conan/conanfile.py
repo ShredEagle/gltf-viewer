@@ -28,11 +28,11 @@ class GltfViewerConan(ConanFile):
     requires = (
         ("boost/1.79.0"),
         ("imgui/1.87"),
-        ("zlib/1.2.12"),
+        ("nativefiledialog/116"),
 
-        ("graphics/41e82d1b2b@adnn/develop"),
+        ("graphics/78f383dd14@adnn/develop"),
         ("handy/4ecfa5b125@adnn/develop"),
-        ("math/6d9dbebec4@adnn/develop"),
+        ("math/f140b4368f@adnn/develop"),
     )
 
     # Note: It seems conventionnal to add CMake build requirement

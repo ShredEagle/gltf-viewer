@@ -6,6 +6,25 @@ namespace gltfviewer {
 
 
 //
+// Directly forward the position and uv, usefull for screen quad
+//
+inline const GLchar* gQuadVertexShader = R"#(
+    #version 400
+
+    layout(location=0) in vec2 ve_position;
+    layout(location=1) in vec2 ve_uv;
+
+    out vec2 ex_uv;
+
+    void main(void)
+    {
+        ex_uv = ve_uv;
+        gl_Position = vec4(ve_position, 0., 1.);
+    }
+)#";
+
+
+//
 // Phong shading(ambient, diffuse, specular)
 //
 inline const GLchar* gStaticVertexShader = R"#(
@@ -22,13 +41,20 @@ inline const GLchar* gStaticVertexShader = R"#(
     uniform mat4 u_projection;
     uniform vec4 u_vertexColorOffset;
 
+    out vec4 ex_position_world;
     out vec4 ex_position_view;
+    out vec4 ex_normal_world;
     out vec4 ex_normal_view;
     out vec2 ex_baseColorUv;
     out vec4 ex_color;
 
     void main(void)
     {
+        ex_position_world = in_modelTransform * ve_position;
+        ex_normal_world = vec4(
+            normalize(transpose(inverse(mat3(in_modelTransform))) * ve_normal),
+            0.);
+
         mat4 modelViewTransform = u_camera * in_modelTransform;
         ex_position_view = modelViewTransform * ve_position;
         ex_normal_view = vec4(
@@ -138,15 +164,16 @@ inline const GLchar* gPhongFragmentShader = R"#(
         vec4 bisector_view = vec4(normalize(vec3(0., 0., 1.) + lightDirection_view.xyz), 0.);
 
         // Use the same color for all lighting components (diffuse, specular and ambient).
-        out_color = vec4(
-            materialColor.xyz * u_light.color
-                * ( max(0., dot(n, lightDirection_view)) * u_light.diffuse  // diffuse
-                    + max(0., pow(dot(n, bisector_view), u_light.specularExponent)) * u_light.ambient // specular
-                    + u_light.ambient // ambient
-                   )
-            ,
-            materialColor.w);
-            //1.);
+        vec3 color = materialColor.xyz * u_light.color
+                     * ( max(0., dot(n, lightDirection_view)) * u_light.diffuse  // diffuse
+                         + max(0., pow(dot(n, bisector_view), u_light.specularExponent)) * u_light.ambient // specular
+                         + u_light.ambient // ambient
+                        );
+
+        // gamma correction
+        color = pow(color, vec3(1.0/2.2));
+
+        out_color = vec4(color, materialColor.w);
 
         //out_color = n;
         //out_color = materialColor;

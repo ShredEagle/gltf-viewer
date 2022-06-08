@@ -81,6 +81,8 @@ in vec4 ex_normal_view;
 in vec2 ex_baseColorUv;
 in vec4 ex_color;
 
+uniform vec3 u_lightColor;
+
 uniform vec4 u_baseColorFactor;
 uniform sampler2D u_baseColorTex;
 uniform float u_metallicFactor;
@@ -112,16 +114,15 @@ void main()
     vec3 v = normalize(-vec3(ex_position_view));
     vec3 n = normalize(vec3(ex_normal_view)); // linear interpolation might shorten the normal
     // Hardcode directional light from camera atm
-    vec3 l = vec3(0., 0., 1.);      // Direction from surface point to light
+    vec3 l = normalize(vec3(0., 0., 1.));      // Direction from surface point to light, in camera space
     vec3 h = normalize(l + v);      // Direction of the vector between l and v, called halfway vector
     float NdotL = clampedDot(n, l);
     float NdotV = clampedDot(n, v);
     float NdotH = clampedDot(n, h);
     float LdotH = clampedDot(l, h);
     float VdotH = clampedDot(v, h);
-    // Hardcode light intensity
-    float intensity = 3.0;
 
+    vec3 intensity = u_lightColor * 3;
 
     // TODO Why the condition in reference glTF viewer?
     //if (NdotL > 0.0 || NdotV > 0.0)
@@ -129,7 +130,13 @@ void main()
         vec3 f_diffuse = intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
         vec3 f_specular = intensity * NdotL * BRDF_specularGGX(f0, f90, alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
 
-        out_color = vec4(f_diffuse + f_specular, materialColor.a);
+        vec3 color = f_diffuse + f_specular;
+        // HDR tonemapping
+        color = color / (color + vec3(1.0));
+        // gamma correct
+        color = pow(color, vec3(1.0/2.2));
+
+        out_color = vec4(color, materialColor.a);
     //}
     //vec3 lamb = BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
     //vec3 spec = BRDF_specularGGX(f0, f90, alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);

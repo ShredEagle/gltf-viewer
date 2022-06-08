@@ -25,6 +25,9 @@ struct CameraInstance
     math::AffineMatrix<4, float> getViewTransform() const
     { return orientation.inverse(); }
 
+    math::Position<3, GLfloat> getWorldPosition() const
+    { return (math::Position<4, GLfloat>{0.f, 0.f, 0.f, 1.f} * orientation).xyz(); }
+
     math::AffineMatrix<4, float> orientation;
     arte::Const_Owned<arte::gltf::Camera> gltfCamera;
 };
@@ -45,6 +48,8 @@ public:
         mAppInterface{std::move(aAppInterface)}
     {}
 
+    math::Position<3, GLfloat> getWorldPosition() const;
+
     /// \return View matrix.
     math::AffineMatrix<4, GLfloat> getViewTransform();
 
@@ -60,8 +65,14 @@ public:
 
     void setViewedBox(math::Box<GLfloat> aSceneBoundingBox);
 
-    /// \return Projection matrix.
+    /// \brief Return the projection transform.
+    ///
+    /// \param aOrthographicPerspectiveEquivalence The depth of the plane in which orthographic and perspective
+    /// projections result in the same screen size.
+    math::Matrix<4, 4, float> getProjectionTransform(GLfloat aOrthographicPerspectiveEquivalence);
+    /// \brief Return the projection transform, with the plane of orthographic/perspective equivalence at orbital origin.
     math::Matrix<4, 4, float> getProjectionTransform();
+
 
     void appendProjectionControls();
 
@@ -79,7 +90,7 @@ private:
     ControlMode mControlMode;
     math::Position<2, GLfloat> mPreviousDragPosition{0.f, 0.f};
     math::Radian<GLfloat> mVerticalFov{defaultVerticalFov()};
-    bool mPerspectiveProjection{false};
+    bool mPerspectiveProjection{true};
     GLfloat mNearPlaneDistance{0.1f}; // Arbitrary initial value
     GLfloat mViewedDepth{1000.f}; // Will be overriden by setViewBoxed()
 
@@ -87,6 +98,8 @@ private:
     static constexpr math::Vec<2, GLfloat> gMouseControlFactor{1/700.f, 1/700.f};
     static constexpr GLfloat gScrollFactor = 0.05;
     static constexpr GLfloat gViewportHeightFactor = 1.6f;
+    static constexpr GLfloat gMinCameraDistance = 0.001f;
+    static constexpr GLfloat gMaxCameraDistance = 1E6f;
 };
 
 
@@ -97,10 +110,13 @@ public:
 
     void setViewedBox(math::Box<GLfloat> aSceneBoundingBox);
 
+    math::Position<3, GLfloat> getWorldPosition() const;
+
     math::AffineMatrix<4, GLfloat> getViewTransform();
     math::Matrix<4, 4, float> getProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);
+    math::Matrix<4, 4, float> getCubemapProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface);
 
-    void appendCameraControls();
+    void showCameraControls();
 
     void clearGltfCameras()
     { mCameraInstances.clear(); }

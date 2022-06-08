@@ -81,6 +81,8 @@ struct Material
     GLfloat metallicFactor;
     GLfloat roughnessFactor;
     std::shared_ptr<graphics::Texture> metallicRoughnessTexture;
+    GLfloat occlusionStrength{1.f};
+    std::shared_ptr<graphics::Texture> occlusionTexture;
 
 
     static std::shared_ptr<graphics::Texture> DefaultTexture();
@@ -151,7 +153,13 @@ struct Mesh
 
 Mesh prepare(arte::Const_Owned<arte::gltf::Mesh> aMesh);
 
-std::shared_ptr<graphics::Texture> prepare(arte::Const_Owned<arte::gltf::Texture> aTexture);
+enum class ColorSpace
+{
+    SRgb,
+    LinearRgb,
+};
+
+std::shared_ptr<graphics::Texture> prepare(arte::Const_Owned<arte::gltf::Texture> aTexture, ColorSpace aInputColorSpace);
 
 
 std::ostream & operator<<(std::ostream & aOut, const MeshPrimitive &);

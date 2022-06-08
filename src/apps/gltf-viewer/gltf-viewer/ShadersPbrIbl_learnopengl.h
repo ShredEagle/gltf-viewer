@@ -5,7 +5,7 @@ namespace ad {
 namespace gltfviewer {
 
 
-inline const std::string gPbrLearnFragmentShader = R"#(
+inline const std::string gIblPbrLearnFragmentShader = R"#(
 #version 400
 
 const float PI = 3.141592653589793;
@@ -19,6 +19,11 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }  
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -59,11 +64,14 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
-in vec4 ex_position_view;
-in vec4 ex_normal_view;
+in vec4 ex_position_world;
+in vec4 ex_normal_world;
 in vec2 ex_baseColorUv;
 in vec4 ex_color;
 
+uniform vec3 u_cameraPosition_world;
+
+uniform vec3 u_lightDirection_world;
 uniform vec3 u_lightColor;
 
 uniform vec4 u_baseColorFactor;
@@ -72,17 +80,30 @@ uniform float u_metallicFactor;
 uniform float u_roughnessFactor;
 uniform sampler2D u_metallicRoughnessTex;
 
-uniform int u_debugOutput;
+// Ambient occlusion
+uniform sampler2D u_occlusionTex;
+uniform float     u_occlusionStrength;
+uniform bool      u_enableOcclusionTexture;
 
-// Cannot use as switch case labels apparently
-#define METALLIC 1;
+// IBL parameters
+uniform float       u_ambientFactor;
+uniform int         u_maxReflectionLod;
+uniform samplerCube u_irradianceMap;
+uniform samplerCube u_prefilterMap;
+uniform sampler2D   u_brdfLut;
+
+uniform bool u_hdrTonemapping;
+uniform bool u_gammaCorrect;
+uniform int u_debugOutput;
 
 out vec4 out_color;
 
 void main()
 {
-    vec3 n = normalize(vec3(ex_normal_view));
-    vec3 v = normalize(-vec3(ex_position_view));
+    // The reflected vector must be in world space in order to index the prefiltered cubemap
+    vec3 n = normalize(vec3(ex_normal_world));
+    vec3 v = normalize(u_cameraPosition_world - ex_position_world.xyz);
+    vec3 r = reflect(-v, n);
 
     vec4 materialColor = 
         u_baseColorFactor * texture(u_baseColorTex, ex_baseColorUv)
@@ -99,9 +120,12 @@ void main()
     // TODO should it be squared even more?
     //float alphaRoughness = roughness * roughness;
 
-    vec3 lightColor = vec3(3.);
-    vec3 l = normalize(vec3(0., 0., 1.));      // Direction from surface point to light, in camera space
+    vec3 L0 = vec3(0.0);
 
+    //
+    // Lights
+    //
+    vec3 l = normalize(-u_lightDirection_world);  // Directional light
     vec3 h = normalize(v + l);
 
     float NdotV = clampedDot(n, v);
@@ -110,11 +134,11 @@ void main()
 
     // TODO implement light attenuation
     float attenuation = 1.;
-    vec3 intensity = u_lightColor * 3 * attenuation;
+    vec3 intensity = u_lightColor * attenuation;
 
-    vec3 F = fresnelSchlick(VdotH, F0);
+    vec3 F_Light = fresnelSchlick(VdotH, F0);
 
-    vec3 kS = F;
+    vec3 kS = F_Light;
     vec3 kD = vec3(1.0) - kS;
     // No diffuse component for metals
     kD *= 1.0 - metallic; // Corresponding to: vec3 c_diff = mix(materialColor.rgb, vec3(0), metallic);
@@ -122,7 +146,7 @@ void main()
 
     float NDF = DistributionGGX(n, h, roughness);
     float G   = GeometrySmith(n, v, l, roughness);
-    vec3 numerator    = NDF * G * F;
+    vec3 numerator    = NDF * G * F_Light;
     float denominator = 4.0 * NdotV * NdotL  + 0.0001;
     vec3 specular     = (numerator / denominator) * intensity * NdotL;  
 
@@ -130,18 +154,57 @@ void main()
 
     // Note: Initially, we multiplied by intensity * NdotL here,
     // Yet multiplying early allows better debug color outputs.
-    vec3 L0 = diffuse + specular;
+    L0 += diffuse + specular;
 
-    vec3 color = L0;
+
+    vec3 diffuse_Ibl  = vec3(0.);
+    vec3 specular_Ibl = vec3(0.);
+    float VdotN = clampedDot(v, n);
+    vec3 F_Ibl = fresnelSchlickRoughness(VdotN, F0, roughness);
+    {
+        //
+        // Diffuse IBL
+        //
+        vec3 kS_Ibl = F_Ibl;
+        vec3 kD_Ibl = 1.0 - kS_Ibl;
+        kD_Ibl *= 1.0 - metallic;	  
+
+        vec3 irradiance = texture(u_irradianceMap, ex_normal_world.xyz).rgb;
+        vec3 diffuse    = irradiance * materialColor.rgb;
+        diffuse_Ibl = kD_Ibl * diffuse;
+
+        //
+        // Specular IBL
+        //
+        vec3 prefilteredColor = textureLod(u_prefilterMap, r, roughness * u_maxReflectionLod).rgb;
+
+        vec2 brdf = texture(u_brdfLut, vec2(VdotN, roughness)).rg;
+        // Not multiplied by kS, because there is already F (==kS) in computing specular.
+        specular_Ibl = prefilteredColor * (F_Ibl * brdf.r + brdf.g);
+    }
+
+    float ambientOcclusion = 1.0;
+    if(u_enableOcclusionTexture)
+    {
+        ambientOcclusion += u_occlusionStrength * (texture(u_occlusionTex, ex_baseColorUv).r - 1.0);
+    }
+
+    vec3 ambient = (diffuse_Ibl + specular_Ibl) * ambientOcclusion;
+    vec3 color = L0 + ambient * u_ambientFactor;
 
     // HDR tonemapping
-    color = color / (color + vec3(1.0));
+    if(u_hdrTonemapping)
+    {
+        color = color / (color + vec3(1.0));
+    }
     // gamma correct
-    color = pow(color, vec3(1.0/2.2));
+    if(u_gammaCorrect)
+    {
+        color = pow(color, vec3(1.0/2.2));
+    }
 
     switch(u_debugOutput)
     {
-    //case METALLIC:
     case 1:
         out_color = vec4(vec3(metallic), 1.0);
         break;
@@ -151,8 +214,14 @@ void main()
     case 3:
         out_color = materialColor;
         break;
+    case 4:
+        out_color = vec4(vec3(ambientOcclusion), 1.0);
+        break;
     case 5:
-        out_color = vec4(F, 1.0);
+        out_color = vec4(F_Light, 1.0);
+        break;
+    case 6:
+        out_color = vec4(F_Ibl, 1.0);
         break;
     case 7:
         out_color = vec4(n, 1.0);
@@ -181,15 +250,17 @@ void main()
     case 15:
         out_color = vec4(specular, 1.0);
         break;
+    case 16:
+        out_color = vec4(diffuse_Ibl, 1.0);
+        break;
+    case 17:
+        out_color = vec4(specular_Ibl, 1.0);
+        break;
     case 18:
         out_color = vec4(L0, 1.0);
         break;
-    case 4:
-    case 6:
-    case 16:
-    case 17:
     case 19:
-        out_color = vec4(1.0, 0., 1.0, 1.0);
+        out_color = vec4(ambient, 1.0);
         break;
     default:
         out_color = vec4(color, materialColor.a);
@@ -198,7 +269,6 @@ void main()
 } 
 
 )#";
-
 
 } // namespace gltfviewer
 } // namespace ad

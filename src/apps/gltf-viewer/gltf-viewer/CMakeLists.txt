@@ -2,35 +2,45 @@ set(TARGET_NAME gltf-viewer)
 
 set(${TARGET_NAME}_HEADERS
     Camera.h
+    CubeQuad.h
     DataLayout.h
     DebugDrawer.h
     GltfAnimation.h
     GltfRendering.h
+    Ibl.h
     ImguiUi.h
     LoadBuffer.h
     Logging.h
     Mesh.h
     Polar.h
     Scene.h
+    SceneIblProto.h
     Shaders.h
+    ShadersIblProto.h
     ShadersPbr.h
     ShadersPbr_learnopengl.h
+    ShadersPbrIbl_learnopengl.h
+    ShadersSkybox.h
     SkeletalAnimation.h
+    Sphere.h
     Url.h
     UserOptions.h
 )
 
 set(${TARGET_NAME}_SOURCES
     Camera.cpp
+    CubeQuad.cpp
     DebugDrawer.cpp
     GltfAnimation.cpp
     GltfRendering.cpp
+    Ibl.cpp
     ImguiUi.cpp
     LoadBuffer.cpp
     Logging.cpp
     main.cpp
     Mesh.cpp
     Scene.cpp
+    SceneIblProto.cpp
     SkeletalAnimation.cpp
 )
 
@@ -65,6 +75,7 @@ find_package(Handy CONFIG REQUIRED COMPONENTS resource)
 
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(imgui REQUIRED)
+find_package(nativefiledialog REQUIRED)
 
 target_link_libraries(${TARGET_NAME}
     PRIVATE
@@ -74,4 +85,5 @@ target_link_libraries(${TARGET_NAME}
 
         Boost::program_options
         imgui::imgui
+        nativefiledialog::nativefiledialog
 )

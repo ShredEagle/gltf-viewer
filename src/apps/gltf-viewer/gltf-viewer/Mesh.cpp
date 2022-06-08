@@ -189,7 +189,7 @@ void InstanceList::update(std::span<Instance> aInstances)
 }
 
 
-std::shared_ptr<graphics::Texture> loadGlTexture(arte::Image<math::sdr::Rgba> aTextureData, GLint aMipMapLevels)
+std::shared_ptr<graphics::Texture> loadGlTexture(arte::Image<math::sdr::Rgba> aTextureData, GLint aMipMapLevels, ColorSpace aInputColorSpace)
 {
     auto result = std::make_shared<graphics::Texture>(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, *result);
@@ -198,7 +198,7 @@ std::shared_ptr<graphics::Texture> loadGlTexture(arte::Image<math::sdr::Rgba> aT
     glTexStorage2D(
         GL_TEXTURE_2D,
         aMipMapLevels, 
-        GL_RGBA8, // TODO should it be SRGB8_ALPHA8?
+        aInputColorSpace == ColorSpace::SRgb ? GL_SRGB8_ALPHA8 : GL_RGBA8,
         aTextureData.width(),
         aTextureData.height());
 
@@ -225,7 +225,7 @@ std::shared_ptr<graphics::Texture> Material::DefaultTexture()
     static std::shared_ptr<graphics::Texture> defaultTexture = []()
     {
         arte::Image<math::sdr::Rgba> whitePixel{{1, 1}, math::sdr::gWhite};
-        return loadGlTexture(whitePixel, 1);
+        return loadGlTexture(whitePixel, 1, ColorSpace::LinearRgb); // color space has no impact for pure white
     }();
     return defaultTexture;
 }
@@ -236,11 +236,19 @@ Material::Material(arte::Const_Owned<arte::gltf::Material> aMaterial) :
     alphaMode{aMaterial->alphaMode},
     doubleSided{aMaterial->doubleSided}
 {
-    auto textureDefault = [&aMaterial](std::optional<gltf::TextureInfo> aTextureInfo)
+    auto textureDefault = [&aMaterial]<class T_info>(std::optional<T_info> aTextureInfo, ColorSpace aInputColorSpace)
     {
         if(aTextureInfo)
         {
-            return prepare(aMaterial.get<gltf::Texture>(aTextureInfo->index));
+            // Only supporting TEXCOORD_0 for the moment
+            if(aTextureInfo->texCoord != 0)
+            {
+                ADLOG(gPrepareLogger, critical)
+                     ("Unsupported: Texture info references TEXCOORD #{}.", aTextureInfo->texCoord);
+                throw std::logic_error{"Texture coordinate set other than 0 not implemented."};
+            }
+
+            return prepare(aMaterial.get<gltf::Texture>(aTextureInfo->index), aInputColorSpace);
         }
         else
         {
@@ -250,11 +258,17 @@ Material::Material(arte::Const_Owned<arte::gltf::Material> aMaterial) :
 
     gltf::material::PbrMetallicRoughness pbr = GetPbr(aMaterial);
 
-    baseColorTexture = textureDefault(pbr.baseColorTexture);
+    baseColorTexture = textureDefault(pbr.baseColorTexture, ColorSpace::SRgb);
 
     metallicFactor = pbr.metallicFactor;
     roughnessFactor = pbr.roughnessFactor;
-    metallicRoughnessTexture = textureDefault(pbr.metallicRoughnessTexture);
+    metallicRoughnessTexture = textureDefault(pbr.metallicRoughnessTexture, ColorSpace::LinearRgb);
+
+    occlusionTexture = textureDefault(aMaterial->occlusionTexture, ColorSpace::LinearRgb);
+    if(aMaterial->occlusionTexture)
+    {
+        occlusionStrength = aMaterial->occlusionTexture->strength;
+    }
 }
 
 
@@ -437,13 +451,13 @@ bool MeshPrimitive::providesColor() const
 };
 
 
-std::shared_ptr<graphics::Texture> prepare(arte::Const_Owned<arte::gltf::Texture> aTexture)
+std::shared_ptr<graphics::Texture> prepare(arte::Const_Owned<arte::gltf::Texture> aTexture, ColorSpace aInputColorSpace)
 {
     // TODO How should this value be decided?
     constexpr GLint gMipMapLevels = 6;
 
     auto image = aTexture.get(&gltf::Texture::source);
-    std::shared_ptr<graphics::Texture> result{loadGlTexture(loadImageData(image), gMipMapLevels)};
+    std::shared_ptr<graphics::Texture> result{loadGlTexture(loadImageData(image), gMipMapLevels, aInputColorSpace)};
     graphics::bind_guard boundTexture{*result};
 
     // Sampling parameters

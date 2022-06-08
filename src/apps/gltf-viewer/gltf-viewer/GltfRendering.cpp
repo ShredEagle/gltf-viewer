@@ -1,10 +1,13 @@
 #include "GltfRendering.h"
 
+#include "CubeQuad.h"
 #include "ImguiUi.h"
 #include "Logging.h"
 #include "Shaders.h"
 #include "ShadersPbr.h"
 #include "ShadersPbr_learnopengl.h"
+#include "ShadersPbrIbl_learnopengl.h"
+#include "ShadersSkybox.h"
 
 #include <renderer/Uniforms.h>
 
@@ -32,8 +35,12 @@ inline std::string to_string(DebugColor aColor)
         return "Roughness";
     case DebugColor::Albedo:
         return "Albedo";
-    case DebugColor::SpecularRatio:
-        return "SpecularRatio";
+    case DebugColor::Occlusion:
+        return "Occlusion";
+    case DebugColor::FresnelLight:
+        return "FresnelLight";
+    case DebugColor::FresnelIbl:
+        return "FresnelIbl";
     case DebugColor::Normal:
         return "Normal";
     case DebugColor::View:
@@ -48,10 +55,18 @@ inline std::string to_string(DebugColor aColor)
         return "NormalDistributionFunction";
     case DebugColor::GeometryFunction:
         return "GeometryFunction";
-    case DebugColor::Diffuse:
-        return "Diffuse";
-    case DebugColor::Specular:
-        return "Specular";
+    case DebugColor::DiffuseLight:
+        return "DiffuseLight";
+    case DebugColor::SpecularLight:
+        return "SpecularLight";
+    case DebugColor::DiffuseIbl:
+        return "DiffuseIbl";
+    case DebugColor::SpecularIbl:
+        return "SpecularIbl";
+    case DebugColor::Direct:
+        return "Direct";
+    case DebugColor::Ambient:
+        return "Ambient";
     }
 }
 
@@ -170,16 +185,70 @@ void render(const MeshPrimitive & aMeshPrimitive, VT_extraParams ... aExtraDrawP
     glActiveTexture(GL_TEXTURE0 + Renderer::gMetallicRoughnessTextureUnit);
     glBindTexture(GL_TEXTURE_2D, *material.metallicRoughnessTexture);
 
+    glActiveTexture(GL_TEXTURE0 + Renderer::gOcclusionTextureUnit);
+    glBindTexture(GL_TEXTURE_2D, *material.occlusionTexture);
+
     drawCall(aMeshPrimitive, std::forward<VT_extraParams>(aExtraDrawParams)...);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 
+SkyboxRenderer::SkyboxRenderer() :
+    mEquirectangularProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gSkyboxVertexShader},
+        {GL_FRAGMENT_SHADER, gEquirectangularSkyboxFragmentShader},
+    })},
+    mCubemapProgram{graphics::makeLinkedProgram({
+        {GL_VERTEX_SHADER,   gSkyboxVertexShader},
+        {GL_FRAGMENT_SHADER, gLodCubemapSkyboxFragmentShader},
+    })}
+{
+    setUniformInt(mEquirectangularProgram, "u_equirectangularMap", Renderer::gColorTextureUnit);
+    setUniformInt(mCubemapProgram, "u_cubemap", Renderer::gColorTextureUnit);
+}
+
+
+void SkyboxRenderer::render(const EnvironmentTexture & aSkybox) const
+{
+    glActiveTexture(GL_TEXTURE0 + Renderer::gColorTextureUnit);
+    graphics::bind(aSkybox);
+    graphics::bind(aSkybox.mType == EnvironmentTexture::Type::Equirectangular ?
+        mEquirectangularProgram : mCubemapProgram);
+
+    auto depthMaskGuard = graphics::scopeDepthMask(false);
+    static const Cube gCube;
+    gCube.draw();
+}
+
+
+void SkyboxRenderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aTransformation)
+{
+    math::AffineMatrix<4, GLfloat> viewOrientation{aTransformation.getLinear()};
+    setUniform(mEquirectangularProgram, "u_cameraOrientation", viewOrientation); 
+    setUniform(mCubemapProgram, "u_cameraOrientation", viewOrientation); 
+}
+
+
+void SkyboxRenderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & aTransformation)
+{
+    setUniform(mEquirectangularProgram, "u_projection", aTransformation); 
+    setUniform(mCubemapProgram, "u_projection", aTransformation); 
+}
+
+
+void SkyboxRenderer::setPrefilterLod(GLint aLodLevel)
+{
+    setUniformInt(mCubemapProgram, "u_explicitLod", aLodLevel);
+}
+
 
 Renderer::Renderer()
 {
     initializePrograms();
+
+    // Sampling accross cubemap faces
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);  
 }
 
 
@@ -199,16 +268,38 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
     graphics::bind_guard boundProgram{aProgram};
 
-    setUniformInt(aProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
+    // IBL parameters
+    setUniformFloat(aProgram, "u_ambientFactor", mIbl.mAmbientFactor); 
+    setUniformInt(aProgram, "u_maxReflectionLod", Environment::gPrefilterLevels); 
 
+    // Bind IBL textures
+    if(auto & environment = mIbl.mEnvironment; environment)
+    {
+        glActiveTexture(GL_TEXTURE0 + Renderer::gIrradianceMapTextureUnit);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mIrradianceCubemap);
+
+        glActiveTexture(GL_TEXTURE0 + Renderer::gPrefilterMapTextureUnit);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment->mPrefilteredAntialiasedCubemap);
+
+        // Is present even if the environment is not, but it would not be used
+        glActiveTexture(GL_TEXTURE0 + Renderer::gBrdfLutTextureUnit);
+        glBindTexture(GL_TEXTURE_2D, mIbl.mBrdfLut);
+    }
+
+    setUniformInt(aProgram, "u_debugOutput", static_cast<int>(mColorOutput)); 
+    setUniformInt(aProgram, "u_enableOcclusionTexture", mEnableOcclusionTexture); 
+
+    // TODO do only once
     setUniformInt(aProgram, "u_baseColorTex", gColorTextureUnit); 
     setUniformInt(aProgram, "u_metallicRoughnessTex", gMetallicRoughnessTextureUnit); 
+    setUniformInt(aProgram, "u_occlusionTex", gOcclusionTextureUnit); 
 
     for (const auto & primitive : aMesh.primitives)
     {
         setUniform(aProgram, "u_baseColorFactor", primitive.material.baseColorFactor); 
         setUniformFloat(aProgram, "u_metallicFactor", primitive.material.metallicFactor); 
         setUniformFloat(aProgram, "u_roughnessFactor", primitive.material.roughnessFactor); 
+        setUniformFloat(aProgram, "u_occlusionStrength", primitive.material.occlusionStrength); 
 
         // If the vertex color are not provided for the primitive, the default value (black)
         // will be used in the shaders. It must be offset to white.
@@ -223,14 +314,40 @@ void Renderer::renderImpl(const Mesh & aMesh,
 
 void Renderer::render(const Mesh & aMesh) const
 {
+    renderSkybox();
     renderImpl(aMesh, *activePrograms().at(GpuProgram::InstancedNoAnimation), aMesh.gpuInstances.size());
 }
 
 
 void Renderer::render(const Mesh & aMesh, const Skeleton & aSkeleton) const
 {
+    renderSkybox();
     bind(aSkeleton);
     renderImpl(aMesh, *activePrograms().at(GpuProgram::Skinning));
+}
+
+
+void Renderer::renderSkybox() const
+{
+    if(auto & environment = mIbl.mEnvironment; environment)
+    {
+        auto pickSkybox = [&]() -> const EnvironmentTexture &
+        {
+            switch(mShownSkybox)
+            {
+            case Environment::Content::Radiance:
+                return environment->mEnvironmentEquirectangular;
+            case Environment::Content::Irradiance:
+                return environment->mIrradianceCubemap;
+            case Environment::Content::Prefiltered:
+                return environment->mPrefilteredCubemap;
+            case Environment::Content::PrefilteredAntialiased:
+                return environment->mPrefilteredAntialiasedCubemap;
+            }
+        };
+
+        mSkyboxRenderer.render(pickSkybox());
+    }
 }
 
 
@@ -287,9 +404,20 @@ void Renderer::initializePrograms()
         }
     };
 
+    insertPrograms(ShadingModel::Phong, gltfviewer::gPhongFragmentShader);
     insertPrograms(ShadingModel::PbrReference, gltfviewer::gPbrFragmentShader.c_str());
     insertPrograms(ShadingModel::PbrLearn, gltfviewer::gPbrLearnFragmentShader.c_str());
-    insertPrograms(ShadingModel::Phong, gltfviewer::gPhongFragmentShader);
+    insertPrograms(ShadingModel::PbrLearnIbl, gltfviewer::gIblPbrLearnFragmentShader.c_str());
+
+    // The texture units mappings for IBL are permanent
+    for(auto & [_key, program] : mPrograms.at(ShadingModel::PbrLearnIbl))
+    {
+        setUniformInt(*program, "u_irradianceMap", gIrradianceMapTextureUnit); 
+        setUniformInt(*program, "u_prefilterMap", gPrefilterMapTextureUnit); 
+        setUniformInt(*program, "u_brdfLut", gBrdfLutTextureUnit); 
+        setUniformInt(*program, "u_hdrTonemapping", true); 
+        setUniformInt(*program, "u_gammaCorrect", true); 
+    }
 }
 
 
@@ -298,7 +426,11 @@ void Renderer::setCameraTransformation(const math::AffineMatrix<4, GLfloat> & aT
     for (auto & [_key, program] : activePrograms())
     {
         setUniform(*program, "u_camera", aTransformation); 
+        // Do the inverse computation, instead of requiring a separate call taking the camera position direclty.
+        setUniform(*program, "u_cameraPosition_world", 
+                   (math::Vec<4, GLfloat>{0.f, 0.f, 0.f, 1.f} * aTransformation.inverse()).xyz()); 
     }
+    mSkyboxRenderer.setCameraTransformation(aTransformation);
 }
 
 
@@ -308,7 +440,19 @@ void Renderer::setProjectionTransformation(const math::Matrix<4, 4, GLfloat> & a
     {
         setUniform(*program, "u_projection", aTransformation); 
     }
+    mSkyboxRenderer.setProjectionTransformation(aTransformation);
 }
+
+
+void Renderer::setLight(const Light & aLight)
+{
+    for (auto & [_key, program] : activePrograms())
+    {
+        setUniform(*program, "u_lightColor", aLight.mColor); 
+        setUniform(*program, "u_lightDirection_world", aLight.mDirection); 
+    }
+}
+
 
 
 void Renderer::togglePolygonMode()
@@ -355,7 +499,7 @@ void Renderer::showRendererOptions()
         ImGui::EndCombo();
     }
 
-    if (mShadingModel == ShadingModel::PbrLearn)
+    if (mShadingModel == ShadingModel::PbrLearn || mShadingModel == ShadingModel::PbrLearnIbl)
     {
         if (ImGui::BeginCombo("Color output", to_string(mColorOutput).c_str()))
         {
@@ -376,6 +520,38 @@ void Renderer::showRendererOptions()
             }
             ImGui::EndCombo();
         }
+    }
+
+    if (ImGui::BeginCombo("Skybox", to_string(mShownSkybox).c_str()))
+    {
+        for (int id = 0; id < static_cast<int>(Environment::Content::_End); ++id)
+        {
+            Environment::Content entry = static_cast<Environment::Content>(id);
+            const bool isSelected = (mShownSkybox == entry);
+            if (ImGui::Selectable(to_string(entry).c_str(), isSelected))
+            {
+                mShownSkybox = entry;
+            }
+
+            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+            if (isSelected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if(mShownSkybox == Environment::Content::Prefiltered || mShownSkybox == Environment::Content::PrefilteredAntialiased)
+    {
+        ImGui::SliderInt("Prefiltered level", &mPrefilteredLod, 0, gltfviewer::Environment::gPrefilterLevels - 1);
+        mSkyboxRenderer.setPrefilterLod(mPrefilteredLod);
+    }
+
+    if(mShadingModel == ShadingModel::PbrLearnIbl)
+    {
+        ImGui::SliderFloat("IBL factor", &mIbl.mAmbientFactor, 0.f, 3.0f, "%.3f");
+        ImGui::Checkbox("Ambient occlusion", &mEnableOcclusionTexture);
     }
 
     ImGui::End();

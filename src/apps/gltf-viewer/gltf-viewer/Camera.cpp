@@ -67,13 +67,18 @@ math::Matrix<4, 4, float> getProjection(arte::Const_Owned<arte::gltf::Camera> aC
 //
 // UserCamera
 //
+
+
+math::Position<3, GLfloat> UserCamera::getWorldPosition() const
+{
+    return mPolarOrigin + mPosition.toCartesian().as<math::Vec>();
+}
+
+
 math::AffineMatrix<4, GLfloat> UserCamera::getViewTransform()
 {
-    const math::Position<3, GLfloat> cameraCartesian = mPosition.toCartesian();
-    ADLOG(gDrawLogger, trace)("Camera position {}.", cameraCartesian);
-
-    math::Vec<3, GLfloat> gazeDirection = gGazePoint - cameraCartesian;
-    return graphics::getCameraTransform(mPolarOrigin + cameraCartesian.as<math::Vec>(),
+    math::Vec<3, GLfloat> gazeDirection = gGazePoint - mPosition.toCartesian();
+    return graphics::getCameraTransform(getWorldPosition(),
                                         gazeDirection,
                                         mPosition.getUpTangent());
 }
@@ -94,7 +99,7 @@ math::Radian<GLfloat> defaultVerticalFov()
 }
 
 
-math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
+math::Matrix<4, 4, float> UserCamera::getProjectionTransform(GLfloat aOrthographicPerspectiveEquivalence)
 {
     float nearPlaneZ = -mNearPlaneDistance;
 
@@ -104,7 +109,7 @@ math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
     // This implements "apparent size consistency" for dimensions in the plane containing polar origin
     // and perpendicalur to view vector.
     GLfloat projectionHeight = 2 * tan(mVerticalFov / 2)
-                               * std::abs(mPerspectiveProjection ? nearPlaneZ : mPosition.r);
+                               * std::abs(mPerspectiveProjection ? nearPlaneZ : aOrthographicPerspectiveEquivalence);
 
     const math::Box<GLfloat> projectedBox = graphics::getViewVolumeRightHanded(
         mAppInterface->getWindowSize(),
@@ -123,6 +128,12 @@ math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
     }
 
     return projectionTransform;
+}
+
+
+math::Matrix<4, 4, float> UserCamera::getProjectionTransform()
+{
+    return getProjectionTransform(mPosition.r);
 }
 
 
@@ -190,6 +201,7 @@ void UserCamera::callbackScroll(double xoffset, double yoffset)
 {
     auto factor = (1 - yoffset * gScrollFactor);
     mPosition.r *= factor;
+    mPosition.r = std::clamp(mPosition.r, gMinCameraDistance, gMaxCameraDistance);
 }
 
 
@@ -235,6 +247,19 @@ void CameraSystem::setViewedBox(math::Box<GLfloat> aSceneBoundingBox)
 }
 
 
+math::Position<3, GLfloat> CameraSystem::getWorldPosition() const
+{
+    if (!mSelectedCamera)
+    {
+        return mCustomCamera.getWorldPosition();
+    }
+    else
+    {
+        return mCameraInstances[*mSelectedCamera].getWorldPosition();
+    }
+}
+
+
 math::AffineMatrix<4, GLfloat> CameraSystem::getViewTransform()
 {
     if (!mSelectedCamera)
@@ -262,11 +287,28 @@ math::Matrix<4, 4, float> CameraSystem::getProjectionTransform(std::shared_ptr<g
 }
 
 
+math::Matrix<4, 4, float> CameraSystem::getCubemapProjectionTransform(std::shared_ptr<graphics::AppInterface> aAppInterface)
+{
+    if (!mSelectedCamera)
+    {
+        constexpr GLfloat gCubemapDepth = 1.f;
+        return mCustomCamera.getProjectionTransform(gCubemapDepth);
+    }
+    else
+    {
+        return getProjection(mCameraInstances[*mSelectedCamera].gltfCamera,
+                             getRatio<GLfloat>(aAppInterface->getFramebufferSize()));
+    }
+}
+
+
 //
 // GUI
 //
-void CameraSystem::appendCameraControls()
+void CameraSystem::showCameraControls()
 {
+    ImGui::Begin("Camera options");
+
     // Camera selection
     auto nameCamera = [&](std::size_t aId)
     { 
@@ -314,6 +356,8 @@ void CameraSystem::appendCameraControls()
     {
         mCustomCamera.appendProjectionControls();
     }
+
+    ImGui::End();
 }
 
 
