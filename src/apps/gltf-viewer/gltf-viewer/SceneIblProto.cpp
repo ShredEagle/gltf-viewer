@@ -4,7 +4,7 @@
 #include "ShadersIblProto.h"
 #include "ShadersSkybox.h"
 
-#include <renderer/Framebuffer.h>
+#include <renderer/FrameBuffer.h>
 
 #include <renderer/GL_Loader.h>
 #include <renderer/Uniforms.h>

@@ -8,7 +8,7 @@
 
 #include <math/Transformations.h>
 
-#include <renderer/Framebuffer.h>
+#include <renderer/FrameBuffer.h>
 #include <renderer/Shading.h>
 #include <renderer/Uniforms.h>
 
