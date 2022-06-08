@@ -30,7 +30,7 @@ class GltfViewerConan(ConanFile):
         ("imgui/1.87"),
         ("nativefiledialog/116"),
 
-        ("graphics/78f383dd14@adnn/develop"),
+        ("graphics/2d7d5f5479@adnn/develop"),
         ("handy/4ecfa5b125@adnn/develop"),
         ("math/f140b4368f@adnn/develop"),
     )
