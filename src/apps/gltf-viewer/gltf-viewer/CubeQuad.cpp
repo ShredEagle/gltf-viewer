@@ -68,8 +68,8 @@ Cube::Cube() :
 
 void Cube::draw() const
 {
-    graphics::bind_guard boundVao{mVao};
-    graphics::bind_guard boundIbo{mCubeIndices};
+    graphics::ScopedBind boundVao{mVao};
+    graphics::ScopedBind boundIbo{mCubeIndices};
     glDrawElements(GL_TRIANGLES, gCubeIndices.size(), GL_UNSIGNED_SHORT, nullptr);
 }
 
@@ -81,7 +81,7 @@ Quad::Quad() :
 
 void Quad::draw() const
 {
-    graphics::bind_guard boundVao{mVertexSpecification};
+    graphics::ScopedBind boundVao{mVertexSpecification};
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 

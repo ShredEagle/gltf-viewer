@@ -95,8 +95,8 @@ inline Sphere::Sphere(unsigned int aSegments)
 
 inline void Sphere::draw() const
 {
-    graphics::bind_guard boundVao{mVao};
-    graphics::bind_guard boundIbo{mIndices};
+    graphics::ScopedBind boundVao{mVao};
+    graphics::ScopedBind boundIbo{mIndices};
     glDrawElements(GL_TRIANGLE_STRIP, mIndicesCount, GL_UNSIGNED_SHORT, nullptr);
 }
 

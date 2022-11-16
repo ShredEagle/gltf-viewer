@@ -13,7 +13,7 @@ using Matrix = math::AffineMatrix<4, GLfloat>;
 
 JointMatrixPalette::JointMatrixPalette(std::size_t aMatrixCount)
 {
-    graphics::bind_guard bound{uniformBuffer};
+    graphics::ScopedBind bound{uniformBuffer};
     glBufferData(GL_UNIFORM_BUFFER,
         sizeof(Matrix) * aMatrixCount, 
         nullptr,
@@ -23,7 +23,7 @@ JointMatrixPalette::JointMatrixPalette(std::size_t aMatrixCount)
 
 void JointMatrixPalette::update(std::span<Matrix> aMatrices)
 {
-    graphics::bind_guard bound{uniformBuffer};
+    graphics::ScopedBind bound{uniformBuffer};
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Matrix) * aMatrices.size(), aMatrices.data());
 }
 

@@ -179,7 +179,7 @@ Indices::Indices(Const_Owned<gltf::Accessor> aAccessor) :
 void InstanceList::update(std::span<Instance> aInstances)
 {
     {
-        graphics::bind_guard boundBuffer{mVbo};
+        graphics::ScopedBind boundBuffer{mVbo};
         // Orphan the previous buffer, if any
         glBufferData(GL_ARRAY_BUFFER, aInstances.size_bytes(), NULL, GL_STREAM_DRAW);
         // Copy value to new buffer
@@ -323,7 +323,7 @@ MeshPrimitive::MeshPrimitive(Const_Owned<gltf::Primitive> aPrimitive) :
     drawMode{aPrimitive->mode},
     material{aPrimitive.value_or(&gltf::Primitive::material, gltf::gDefaultMaterial)}
 {
-    graphics::bind_guard boundVao{vao};
+    graphics::ScopedBind boundVao{vao};
 
     for (const auto & [semantic, accessorIndex] : aPrimitive->attributes)
     {
@@ -356,7 +356,7 @@ MeshPrimitive::MeshPrimitive(Const_Owned<gltf::Primitive> aPrimitive) :
 
             glEnableVertexAttribArray(found->second);
 
-            graphics::bind_guard boundBuffer{vertexBuffer.vbo};
+            graphics::ScopedBind boundBuffer{vertexBuffer.vbo};
 
             // The vertex attributes in the shader are float, so use glVertexAttribPointer.
             glVertexAttribPointer(found->second,
@@ -425,8 +425,8 @@ MeshPrimitive::MeshPrimitive(arte::Const_Owned<arte::gltf::Primitive> aPrimitive
 
 void MeshPrimitive::associateInstanceBuffer(const InstanceList & aInstances)
 {
-    graphics::bind_guard boundVao{vao};
-    graphics::bind_guard boundBuffer{aInstances.mVbo};
+    graphics::ScopedBind boundVao{vao};
+    graphics::ScopedBind boundBuffer{aInstances.mVbo};
 
     for(GLuint attributeOffset = 0; attributeOffset != 4; ++attributeOffset)
     {
@@ -458,7 +458,7 @@ std::shared_ptr<graphics::Texture> prepare(arte::Const_Owned<arte::gltf::Texture
 
     auto image = aTexture.get(&gltf::Texture::source);
     std::shared_ptr<graphics::Texture> result{loadGlTexture(loadImageData(image), gMipMapLevels, aInputColorSpace)};
-    graphics::bind_guard boundTexture{*result};
+    graphics::ScopedBind boundTexture{*result};
 
     // Sampling parameters
     {

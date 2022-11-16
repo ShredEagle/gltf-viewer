@@ -65,7 +65,7 @@ graphics::Texture loadEquirectangularMapHdr(const filesystem::path & aEquirectan
                     graphics::countCompleteMipmaps(image.dimensions()));
 
     // Cannot bind earlier, allocate storage scopes the bind...
-    graphics::bind_guard boundTexture{equirect};
+    graphics::ScopedBind boundTexture{equirect};
 
     Guard scopedAlignemnt = graphics::detail::scopeUnpackAlignment(image.rowAlignment());
     glTexSubImage2D(GL_TEXTURE_2D,

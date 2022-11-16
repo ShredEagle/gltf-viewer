@@ -57,7 +57,7 @@ namespace {
         allocateStorage(cubemap, GL_RGB8, image.dimensions());
 
         // Cannot bind earlier, allocate storage scopes the bind...
-        graphics::bind_guard boundCubemap{cubemap};
+        graphics::ScopedBind boundCubemap{cubemap};
 
         loadData(image, faceId);
 
@@ -175,13 +175,13 @@ void IblRenderer::render() const
         if(mShowObject)
         {
             glActiveTexture(GL_TEXTURE0 + gCubemapTextureUnit);
-            graphics::bind_guard boundCubemap{mIrradianceCubemap};
+            graphics::ScopedBind boundCubemap{mIrradianceCubemap};
             glActiveTexture(GL_TEXTURE0 + gPrefilterMapTextureUnit);
             bind(mPrefilteredAntialiasedCubemap);
             glActiveTexture(GL_TEXTURE0 + gBrdfLutTextureUnit);
             bind(mBrdfLut);
 
-            graphics::bind_guard boundProgram{mModelProgram};
+            graphics::ScopedBind boundProgram{mModelProgram};
 
             mSphere.draw();
         }

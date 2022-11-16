@@ -103,7 +103,7 @@ void drawCall(const MeshPrimitive & aMeshPrimitive)
              ("Indexed rendering of {} vertices with mode {}.", aMeshPrimitive.count, aMeshPrimitive.drawMode);
 
         const Indices & indices = *aMeshPrimitive.indices;
-        graphics::bind_guard boundIndexBuffer{indices.ibo};
+        graphics::ScopedBind boundIndexBuffer{indices.ibo};
         glDrawElements(aMeshPrimitive.drawMode, 
                        aMeshPrimitive.count,
                        indices.componentType,
@@ -131,7 +131,7 @@ void drawCall(const MeshPrimitive & aMeshPrimitive, GLsizei aInstanceCount)
               aMeshPrimitive.count, aInstanceCount, aMeshPrimitive.drawMode);
 
         const Indices & indices = *aMeshPrimitive.indices;
-        graphics::bind_guard boundIndexBuffer{indices.ibo};
+        graphics::ScopedBind boundIndexBuffer{indices.ibo};
         glDrawElementsInstanced(
             aMeshPrimitive.drawMode, 
             aMeshPrimitive.count,
@@ -157,7 +157,7 @@ void drawCall(const MeshPrimitive & aMeshPrimitive, GLsizei aInstanceCount)
 template <class ... VT_extraParams>
 void render(const MeshPrimitive & aMeshPrimitive, VT_extraParams ... aExtraDrawParams)
 {
-    graphics::bind_guard boundVao{aMeshPrimitive.vao};
+    graphics::ScopedBind boundVao{aMeshPrimitive.vao};
 
     const auto & material = aMeshPrimitive.material;
 
@@ -266,7 +266,7 @@ void Renderer::renderImpl(const Mesh & aMesh,
     // Not enabled by default OpenGL context.
     glEnable(GL_DEPTH_TEST);
 
-    graphics::bind_guard boundProgram{aProgram};
+    graphics::ScopedBind boundProgram{aProgram};
 
     // IBL parameters
     setUniformFloat(aProgram, "u_ambientFactor", mIbl.mAmbientFactor); 
