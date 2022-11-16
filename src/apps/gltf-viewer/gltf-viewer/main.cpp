@@ -67,10 +67,10 @@ filesystem::path pickFile(filesystem::path aUserPath)
         ADLOG(gltfviewer::gPrepareLogger, info)
          ("User path '{}' is a folder, looking for the first gltf file.", aUserPath);
 
-        using boost::filesystem::directory_iterator;
-        for(auto & entry : boost::make_iterator_range(directory_iterator(aUserPath), {}))
+        using filesystem::directory_iterator;
+        for(auto & entry : directory_iterator(aUserPath))
         {
-            if(extension(entry) == ".gltf")
+            if(entry.path().extension() == ".gltf")
             {
                 ADLOG(gltfviewer::gPrepareLogger, debug)("Picking file '{}'.", entry);
                 return entry;
