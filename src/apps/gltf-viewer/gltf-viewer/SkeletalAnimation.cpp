@@ -3,6 +3,8 @@
 #include "LoadBuffer.h"
 #include "Shaders.h"
 
+#include <cassert>
+
 
 namespace ad {
 namespace gltfviewer {

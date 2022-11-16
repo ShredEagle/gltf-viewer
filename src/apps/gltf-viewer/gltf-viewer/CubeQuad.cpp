@@ -58,7 +58,7 @@ Cube::Cube() :
     mCubeVertices{loadVertexBuffer<const Vertex>(
         mVao,
         gVertexDescription,
-        gVertices)
+        std::span{gVertices})
     },
     mCubeIndices{loadIndexBuffer<const GLushort>(
         mVao, gCubeIndices, graphics::BufferHint::StaticRead)

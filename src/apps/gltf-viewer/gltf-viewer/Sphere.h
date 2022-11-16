@@ -65,7 +65,7 @@ inline Sphere::Sphere(unsigned int aSegments)
         mVertices = loadVertexBuffer<Vertex>(
             mVao,
             gVertexDescription,
-            vertices);
+            std::span{vertices});
 
         bool oddRow = false;
         for (unsigned int y = 0; y < aSegments; ++y)
